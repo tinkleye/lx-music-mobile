@@ -15,6 +15,8 @@ import IsAllowProgressBarSeek from './IsAllowProgressBarSeek'
 import IsUseSystemFileSelector from './IsUseSystemFileSelector'
 import IsAlwaysKeepStatusbarHeight from './IsAlwaysKeepStatusbarHeight'
 import IsStartupFullscreen from './IsStartupFullscreen'
+import IsCarMode from './IsCarMode'
+import CarUIScale from './CarUIScale'
 import IsShowBackBtn from './IsShowBackBtn'
 import IsShowExitBtn from './IsShowExitBtn'
 import DrawerLayoutPosition from './DrawerLayoutPosition'
@@ -34,6 +36,8 @@ export default memo(() => {
       <IsHomePageScroll />
       <IsAllowProgressBarSeek />
       <IsUseSystemFileSelector />
+      <IsCarMode />
+      <CarUIScale />
       <IsStartupFullscreen />
       <IsAlwaysKeepStatusbarHeight />
       <Theme />

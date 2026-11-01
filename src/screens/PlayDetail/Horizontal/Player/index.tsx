@@ -7,6 +7,10 @@ import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import PlayInfo from './PlayInfo'
 import ControlBtn from './ControlBtn'
 import { marginLeftRaw } from '../constant'
+import { isCarModeEnabled } from '@/config/carMode'
+
+// 【改造】车机模式下播放器独占中间一栏，不再需要左侧让位给封面
+const carMode = isCarModeEnabled()
 
 
 export default memo(() => {
@@ -22,7 +26,7 @@ const styles = createStyle({
   container: {
     flexShrink: 0,
     flexGrow: 1,
-    marginLeft: marginLeftRaw,
+    marginLeft: carMode ? 0 : marginLeftRaw,
     // paddingRight: 15,
     // backgroundColor: 'rgba(0,0,0,0.1)',
   },

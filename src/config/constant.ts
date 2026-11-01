@@ -70,6 +70,10 @@ export const storageDataPrefix = {
 
   fontSize: '@font_size',
 
+  // 【改造】车机模式开关与界面缩放倍数（独立存储，需要在启动最早期同步读取）
+  carMode: '@car_mode',
+  carUIScale: '@car_ui_scale',
+
   theme: '@theme',
 
   cheatTip: '@cheat_tip',

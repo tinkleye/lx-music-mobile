@@ -2,7 +2,8 @@ import '@/utils/errorHandle'
 import { init as initLog } from '@/utils/log'
 import { bootLog, getBootLog } from '@/utils/bootLog'
 import '@/config/globalData'
-import { getFontSize } from '@/utils/data'
+import { getFontSize, getCarMode, getCarUIScale } from '@/utils/data'
+import { setCarModeEnabled, setCarUIScale, getCarUIScale as getActiveUIScale } from '@/config/carMode'
 import { exitApp } from './utils/nativeModules/utils'
 import { windowSizeTools } from './utils/windowSizeTools'
 import { listenLaunchEvent } from './navigation/regLaunchedEvent'
@@ -11,8 +12,12 @@ import { tipDialog } from './utils/tools'
 console.log('starting app...')
 listenLaunchEvent()
 
-void Promise.all([getFontSize(), windowSizeTools.init()]).then(async([fontSize]) => {
-  global.lx.fontSize = fontSize
+void Promise.all([getFontSize(), getCarMode(), getCarUIScale(), windowSizeTools.init()]).then(async([fontSize, carMode, carUIScale]) => {
+  // 【改造】车机模式必须在这里定下来：下面 await import('@/navigation') 才会加载
+  // 各个页面的模块，而页面里的 createStyle 只在加载时求值一次。
+  setCarUIScale(carUIScale)
+  setCarModeEnabled(carMode)
+  global.lx.fontSize = fontSize * getActiveUIScale()
   bootLog('Font size setting loaded.')
 
   let isInited = false

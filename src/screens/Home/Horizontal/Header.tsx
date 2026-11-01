@@ -10,6 +10,7 @@ import StatusBar from '@/components/common/StatusBar'
 import { useSettingValue } from '@/store/setting/hook'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT as _HEADER_HEIGHT } from '@/config/constant'
+import { CAR, isCarModeEnabled } from '@/config/carMode'
 import { type InitState as CommonState } from '@/store/common/state'
 import SearchTypeSelector from '@/screens/Home/Views/Search/SearchTypeSelector'
 
@@ -17,7 +18,8 @@ const headerComponents: Partial<Record<CommonState['navActiveId'], React.ReactNo
   nav_search: <SearchTypeSelector />,
 }
 
-const HEADER_HEIGHT = _HEADER_HEIGHT * 0.8
+// 【改造】横屏下原标题栏打了 0.8 折（42 → 33），车机上太矮，车机模式不再打折
+const HEADER_HEIGHT = _HEADER_HEIGHT * (isCarModeEnabled() ? CAR.headerScale : 0.8)
 
 
 // const LeftTitle = () => {

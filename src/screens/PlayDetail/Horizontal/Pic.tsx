@@ -14,7 +14,7 @@ import { useStatusbarHeight } from '@/store/common/hook'
 import commonState from '@/store/common/state'
 
 
-export default memo(({ componentId }: { componentId: string }) => {
+export default memo(({ componentId, carWidth }: { componentId: string, carWidth?: number }) => {
   const musicInfo = usePlayerMusicInfo()
   const { width: winWidth, height: winHeight } = useWindowSize()
   const statusBarHeight = useStatusbarHeight()
@@ -29,10 +29,18 @@ export default memo(({ componentId }: { componentId: string }) => {
     setAnimated(true)
   })
 
-  let imgWidth = Math.min((winWidth * 0.45 - marginLeft - BTN_WIDTH) * 0.76, (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.62)
-  imgWidth -= imgWidth * (global.lx.fontSize - 1) * 0.3
-  let contentHeight = (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.66
-  contentHeight -= contentHeight * (global.lx.fontSize - 1) * 0.2
+  let imgWidth: number
+  let contentHeight: number
+  if (carWidth) {
+    // 【改造】车机模式：封面尺寸由父级按屏幕高度算好传入，直接撑满可用高度
+    imgWidth = carWidth
+    contentHeight = carWidth
+  } else {
+    imgWidth = Math.min((winWidth * 0.45 - marginLeft - BTN_WIDTH) * 0.76, (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.62)
+    imgWidth -= imgWidth * (global.lx.fontSize - 1) * 0.3
+    contentHeight = (winHeight - statusBarHeight - HEADER_HEIGHT) * 0.66
+    contentHeight -= contentHeight * (global.lx.fontSize - 1) * 0.2
+  }
 
   return (
     <View style={{ ...styles.container, height: contentHeight }}>

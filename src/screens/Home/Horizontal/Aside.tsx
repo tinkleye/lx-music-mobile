@@ -3,6 +3,7 @@ import { ScrollView, TouchableOpacity, View } from 'react-native'
 import { useNavActiveId, useStatusbarHeight } from '@/store/common/hook'
 import { useTheme } from '@/store/theme/hook'
 import { Icon } from '@/components/common/Icon'
+import Text from '@/components/common/Text'
 import { confirmDialog, createStyle, exitApp as backHome } from '@/utils/tools'
 import { NAV_MENUS } from '@/config/constant'
 import type { InitState } from '@/store/common/state'
@@ -10,8 +11,14 @@ import type { InitState } from '@/store/common/state'
 import { exitApp, setNavActiveId } from '@/core/common'
 import { BorderWidths } from '@/theme'
 import { useSettingValue } from '@/store/setting/hook'
+import { useI18n } from '@/lang'
+import { CAR, isCarModeEnabled } from '@/config/carMode'
 
-const NAV_WIDTH = 68
+// 【改造】车机模式下导航栏加宽，塞得下「图标 + 文字」
+const carMode = isCarModeEnabled()
+const NAV_WIDTH = carMode ? CAR.navWidth : 68
+const ICON_SIZE = carMode ? CAR.navIconSize : 20
+const ITEM_PADDING_V = carMode ? CAR.navItemPaddingV : 15
 
 const styles = createStyle({
   container: {
@@ -44,8 +51,8 @@ const styles = createStyle({
   },
   menuItem: {
     flexDirection: 'row',
-    paddingTop: 15,
-    paddingBottom: 15,
+    paddingTop: ITEM_PADDING_V,
+    paddingBottom: ITEM_PADDING_V,
     // paddingLeft: 25,
     // paddingRight: 25,
     justifyContent: 'center',
@@ -60,6 +67,10 @@ const styles = createStyle({
   text: {
     paddingLeft: 15,
     // fontWeight: '500',
+  },
+  label: {
+    marginTop: 3,
+    textAlign: 'center',
   },
 })
 
@@ -83,23 +94,31 @@ const MenuItem = ({ id, icon, onPress }: {
   icon: string
   onPress: (id: IdType) => void
 }) => {
-  // const t = useI18n()
+  const t = useI18n()
   const activeId = useNavActiveId()
   const theme = useTheme()
+  const isActive = activeId == id
 
-  return activeId == id
-    ? <View style={styles.menuItem}>
-        <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-primary-font-active']} />
-        </View>
-        {/* <Text style={styles.text} size={14} color={theme['c-primary-font']}>{t(id)}</Text> */}
-      </View>
-    : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>
-        <View style={styles.iconContent}>
-          <Icon name={icon} size={20} color={theme['c-font-label']} />
-        </View>
-        {/* <Text style={styles.text} size={14}>{t(id)}</Text> */}
-      </TouchableOpacity>
+  // 【改造】车机模式下图标下面补一行文字，行车时不用猜图标含义
+  const content = (
+    <View style={styles.iconContent}>
+      <Icon name={icon} size={ICON_SIZE} color={isActive ? theme['c-primary-font-active'] : theme['c-font-label']} />
+      {
+        carMode
+          ? <Text
+              style={styles.label}
+              size={CAR.navLabelSize}
+              numberOfLines={1}
+              color={isActive ? theme['c-primary-font-active'] : theme['c-font-label']}
+            >{t(id)}</Text>
+          : null
+      }
+    </View>
+  )
+
+  return isActive
+    ? <View style={styles.menuItem}>{content}</View>
+    : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>{content}</TouchableOpacity>
 }
 
 export default memo(() => {
@@ -145,4 +164,3 @@ export default memo(() => {
     </View>
   )
 })
-

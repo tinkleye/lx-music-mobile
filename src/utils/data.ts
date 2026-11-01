@@ -66,6 +66,19 @@ export const saveFontSize = async(size: number) => {
   await saveData(fontSizeKey, size)
 }
 
+// 【改造】车机模式：开关与缩放倍数。启动时和字号一起读取，早于页面模块加载。
+const carModeKey = storageDataPrefix.carMode
+const carUIScaleKey = storageDataPrefix.carUIScale
+
+export const getCarMode = async() => (await getData<boolean>(carModeKey) ?? true)
+export const saveCarMode = async(enable: boolean) => {
+  await saveData(carModeKey, enable)
+}
+export const getCarUIScale = async() => (await getData<number>(carUIScaleKey) ?? 1.1)
+export const saveCarUIScale = async(scale: number) => {
+  await saveData(carUIScaleKey, scale)
+}
+
 export const getUserTheme = async() => (await getData<LX.Theme[]>(themeKey) ?? [])
 export const saveUserTheme = async(themes: LX.Theme[]) => {
   await saveData(themeKey, themes)
