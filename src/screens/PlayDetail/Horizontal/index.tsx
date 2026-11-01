@@ -14,16 +14,16 @@ import Pic from './Pic'
 // import ControlBtn from './ControlBtn'
 import Lyric from './Lyric'
 import Player from './Player'
+import CarPlayer from './CarPlayer'
 import { createStyle } from '@/utils/tools'
 import { marginLeftRaw } from './constant'
 import { useStatusbarHeight } from '@/store/common/hook'
 import { useWindowSize } from '@/utils/hooks'
-import { CAR, isCarModeEnabled } from '@/config/carMode'
-import { BTN_WIDTH } from './MoreBtn/Btn'
+import { isCarModeEnabled } from '@/config/carMode'
 // import MoreBtn from './MoreBtn2'
 
-// 【改造】车机模式：超宽屏（如 1920x720）下原来的左右两栏会把内容拉得很散，
-// 改成「封面 | 信息与控制 | 歌词」三栏，封面能用满高度，控制按钮也能放大。
+// 【改造】车机模式：超宽屏（如 1920x720）下改为左右两栏布局，
+// 左栏封面+信息+控制，右栏歌词，参考车机 App 常见样式。
 const carMode = isCarModeEnabled()
 
 export default memo(({ componentId }: { componentId: string }) => {
@@ -60,25 +60,19 @@ export default memo(({ componentId }: { componentId: string }) => {
   }, [])
 
   if (carMode) {
-    // 封面按可用高度算成正方形，同时不超过屏幕宽度的 26%，剩下的宽度留给歌词
-    const coverSize = Math.min(
-      winHeight - statusBarHeight - HEADER_HEIGHT - 30,
-      winWidth * 0.26,
-    )
+    // 【改造】车机模式：参考车机 App 截图改为左右两栏
+    // 左栏：封面(黑胶) + 歌名收藏 + 进度条 + 大播放按钮；右栏：歌词
+    const contentH = winHeight - statusBarHeight - HEADER_HEIGHT
+    const coverSize = Math.min(contentH * 0.32, winWidth * 0.15, 300)
     return (
       <PageContent>
         <StatusBar />
         <View style={{ flex: 1, paddingTop: statusBarHeight }}>
-          <Header />
           <View style={styles.carBody}>
-            <View style={{ ...styles.carCover, width: coverSize + BTN_WIDTH + 20 }}>
-              <MoreBtn />
-              <Pic componentId={componentId} carWidth={coverSize} />
+            <View style={styles.carLeft}>
+              <CarPlayer coverSize={coverSize} />
             </View>
-            <View style={styles.carMiddle}>
-              <Player />
-            </View>
-            <View style={{ ...styles.carLyric, width: Math.min(winWidth * 0.4, CAR.lyricMaxWidth) }}>
+            <View style={styles.carLyric}>
               <Lyric />
             </View>
           </View>
@@ -116,29 +110,21 @@ const styles = createStyle({
     flex: 1,
     flexDirection: 'row',
   },
-  // 【改造】车机模式三栏容器
+  // 【改造】车机模式左右两栏容器
   carBody: {
     flex: 1,
     flexDirection: 'row',
+  },
+  carLeft: {
+    width: '46%',
+    flexGrow: 0,
+    flexShrink: 0,
     paddingBottom: 10,
   },
-  carCover: {
-    flexGrow: 0,
-    flexShrink: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    // 给左侧浮动的「更多」按钮让出位置，避免压住封面
-    // 注意这里写原始值 32，createStyle 会再按屏幕缩放一次，和 MoreBtn 的宽度一致
-    paddingLeft: 32,
-  },
-  carMiddle: {
+  carLyric: {
     flexGrow: 1,
     flexShrink: 1,
-    paddingHorizontal: 12,
-  },
-  carLyric: {
-    flexGrow: 0,
-    flexShrink: 0,
+    paddingLeft: 6,
   },
   left: {
     flex: 1,
