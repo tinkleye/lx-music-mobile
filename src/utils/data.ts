@@ -551,19 +551,55 @@ const matchInfo = (scriptInfo: string) => {
 
   return infos as Record<keyof typeof INFO_NAMES, string>
 }
-export const addUserApi = async(script: string): Promise<LX.UserApi.UserApiInfo> => {
+// 【改造】解析自定义源脚本头部注释里的元信息，供导入/更新共用
+export const parseUserApiScriptInfo = (script: string) => {
   const result = /^\/\*[\S|\s]+?\*\//.exec(script)
   if (!result) throw new Error(global.i18n.t('user_api_add_failed_tip'))
+  return matchInfo(result[0])
+}
 
-  let scriptInfo = matchInfo(result[0])
+export const addUserApi = async(script: string, sourceUrl?: string): Promise<LX.UserApi.UserApiInfo> => {
+  let scriptInfo = parseUserApiScriptInfo(script)
 
   scriptInfo.name ||= `user_api_${new Date().toLocaleString()}`
   const apiInfo: LX.UserApi.UserApiInfo = {
     id: `user_api_${Math.random().toString().substring(2, 5)}_${Date.now()}`,
     ...scriptInfo,
     allowShowUpdateAlert: true,
+    // 【改造】记住导入时的来源地址，后续可据此自动更新
+    ...(sourceUrl ? { sourceUrl } : {}),
   }
   userApis.push(apiInfo)
+  await saveDataMultiple([
+    [userApiPrefix, userApis],
+    [`${userApiPrefix}${apiInfo.id}`, script],
+  ])
+  return apiInfo
+}
+
+/**
+ * 【改造】用新脚本替换已有自定义源，id 保持不变。
+ * 这样正在使用的源可以原地升级，不需要「删除旧的 → 重新导入 → 重新启用」。
+ */
+export const updateUserApiScript = async(id: string, script: string, sourceUrl?: string): Promise<LX.UserApi.UserApiInfo> => {
+  const index = userApis.findIndex(api => api.id == id)
+  if (index < 0) throw new Error('api not found')
+
+  const old = userApis[index]
+  const scriptInfo = parseUserApiScriptInfo(script)
+
+  // 新脚本没写的字段（如 description）保留旧值，避免信息被清空
+  const apiInfo: LX.UserApi.UserApiInfo = { ...old }
+  for (const key of Object.keys(scriptInfo) as Array<keyof typeof scriptInfo>) {
+    const value = scriptInfo[key]
+    if (value) (apiInfo as Record<string, string>)[key] = value
+  }
+  apiInfo.id = old.id
+  apiInfo.name = scriptInfo.name || old.name
+  apiInfo.allowShowUpdateAlert = old.allowShowUpdateAlert
+  if (sourceUrl) apiInfo.sourceUrl = sourceUrl
+
+  userApis.splice(index, 1, apiInfo)
   await saveDataMultiple([
     [userApiPrefix, userApis],
     [`${userApiPrefix}${apiInfo.id}`, script],
@@ -589,4 +625,13 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
   if (!targetApi) return
   targetApi.allowShowUpdateAlert = enable
   await saveData(userApiPrefix, userApis)
+}
+
+// 【改造】记住上一次导入时填写的源地址，下次在线导入自动预填
+const userApiLastSourceUrlKey = `${userApiPrefix}last_source_url`
+export const getUserApiLastSourceUrl = async(): Promise<string> => {
+  return await getData<string>(userApiLastSourceUrlKey) ?? ''
+}
+export const setUserApiLastSourceUrl = async(url: string) => {
+  await saveData(userApiLastSourceUrlKey, url)
 }

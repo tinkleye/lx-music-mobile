@@ -6,6 +6,9 @@ export const exitApp = UtilsModule.exitApp
 
 export const getSupportedAbis = UtilsModule.getSupportedAbis
 
+// 【改造】开/关沉浸式全屏（隐藏状态栏 + 导航栏），由设置项「启动即全屏」驱动
+export const setFullscreen = (enable: boolean) => UtilsModule.setFullscreen(enable) as void
+
 export const installApk = (filePath: string, fileProviderAuthority: string) => UtilsModule.installApk(filePath, fileProviderAuthority)
 
 

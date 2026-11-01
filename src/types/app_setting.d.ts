@@ -77,6 +77,16 @@ declare global {
       'common.alwaysKeepStatusbarHeight': boolean
 
       /**
+       * 【改造】启动即全屏（沉浸式）：隐藏系统状态栏与底部导航栏
+       */
+      'common.startupFullscreen': boolean
+
+      /**
+       * 【改造】启动时自动检查自定义源更新
+       */
+      'common.autoUpdateUserApi': boolean
+
+      /**
        * 主题id
        */
       'theme.id': string

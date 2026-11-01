@@ -12,6 +12,7 @@ import {
 import themeState from '@/store/theme/state'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { getStatusBarStyle } from './utils'
+import { isFullscreenEnabled } from '@/config/fullscreen'
 import { windowSizeTools } from '@/utils/windowSizeTools'
 import { type ListInfoItem } from '@/store/songlist/state'
 
@@ -67,7 +68,7 @@ export async function pushHomeScreen() {
               },
               statusBar: {
                 drawBehind: true,
-                visible: false, // 【改造】沉浸式全屏：不再显示系统状态栏
+                visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：不再显示系统状态栏
                 style: getStatusBarStyle(theme.isDark),
                 backgroundColor: 'transparent',
               },
@@ -132,7 +133,7 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
           },
           statusBar: {
             drawBehind: true,
-            visible: false, // 【改造】沉浸式全屏：不再显示系统状态栏
+            visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：不再显示系统状态栏
             style: getStatusBarStyle(theme.isDark),
             backgroundColor: 'transparent',
           },
@@ -217,7 +218,7 @@ export function pushSonglistDetailScreen(componentId: string, info: ListInfoItem
           },
           statusBar: {
             drawBehind: true,
-            visible: false, // 【改造】沉浸式全屏：不再显示系统状态栏
+            visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：不再显示系统状态栏
             style: getStatusBarStyle(theme.isDark),
             backgroundColor: 'transparent',
           },
@@ -350,7 +351,7 @@ export function pushCommentScreen(componentId: string) {
           },
           statusBar: {
             drawBehind: true,
-            visible: false, // 【改造】沉浸式全屏：不再显示系统状态栏
+            visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：不再显示系统状态栏
             style: getStatusBarStyle(theme.isDark),
             backgroundColor: 'transparent',
           },

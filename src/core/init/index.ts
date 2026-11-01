@@ -13,7 +13,9 @@ import commonActions from '@/store/common/action'
 import settingState from '@/store/setting/state'
 import { checkUpdate } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
-import { cheatTip } from '@/utils/tools'
+import { applyFullscreenSetting } from '@/core/fullscreen'
+import { checkUserApiUpdates } from '@/core/userApi'
+import { cheatTip, toast } from '@/utils/tools'
 
 let isFirstPush = true
 const handlePushedHomeScreen = async() => {
@@ -38,6 +40,10 @@ export default async() => {
   bootLog('Font size changed.')
   const setting = await initSetting()
   bootLog('Setting inited.')
+
+  // 【改造】按设置应用「启动即全屏」（原生默认全屏，关闭时这里把系统栏还原）
+  applyFullscreenSetting()
+  bootLog('Fullscreen applied.')
   // console.log(setting)
 
   await initTheme(setting)
@@ -62,6 +68,17 @@ export default async() => {
 
   void initSync(setting)
   bootLog('Sync inited.')
+
+  // 【改造】启动后延迟检查自定义源更新（只处理记录过来源地址的源）
+  if (setting['common.autoUpdateUserApi']) {
+    setTimeout(() => {
+      void checkUserApiUpdates().then(result => {
+        if (result.updated) toast(global.i18n.t('user_api_check_update_success', { count: result.updated }))
+      }).catch(err => {
+        console.log(err)
+      })
+    }, 5000)
+  }
 
   // syncSetting()
 

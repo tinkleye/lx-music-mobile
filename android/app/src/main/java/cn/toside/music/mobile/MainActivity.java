@@ -9,12 +9,13 @@ import android.view.WindowManager;
 import com.reactnativenavigation.NavigationActivity;
 
 /**
- * 【改造】打开 App 即进入沉浸式全屏。
+ * 【改造】打开 App 即进入沉浸式全屏，并支持在设置页里随时开关。
  *
  * 做的事情：
  * 1. 隐藏顶部状态栏（时间/电量那条）和底部虚拟导航键；
  * 2. 系统栏被任何原因重新唤出后（下拉通知栏、切换页面、输入法弹出），会自动再隐藏；
- * 3. 保留「上滑临时唤出」的系统行为（IMMERSIVE_STICKY），几秒后自动缩回。
+ * 3. 保留「上滑临时唤出」的系统行为（IMMERSIVE_STICKY），几秒后自动缩回；
+ * 4. 由 JS 调用 {@link #setFullscreenEnabled(boolean)} 可实时开/关（设置项「启动即全屏」）。
  *
  * 横屏锁定不在这里，写在 AndroidManifest.xml 的 android:screenOrientation="sensorLandscape"，
  * 这样「只改一个地方」就能恢复成跟随重力感应。
@@ -22,10 +23,18 @@ import com.reactnativenavigation.NavigationActivity;
 public class MainActivity extends NavigationActivity {
 
   /**
-   * 全屏总开关。
-   * 想临时恢复官方原样（带状态栏），把这里改成 false 重新编译即可。
+   * 当前 Activity 实例，供 JS 通过 UtilsModule 反查。
    */
-  private static final boolean ENABLE_IMMERSIVE_FULLSCREEN = true;
+  private static MainActivity currentInstance;
+
+  /**
+   * 全屏开关（运行期可变）。
+   *
+   * 默认 true：App 一启动就是全屏，不会先闪一下状态栏。
+   * JS 初始化完成后会读取设置项，若用户关掉了「启动即全屏」，会调用
+   * setFullscreenEnabled(false) 退出全屏。
+   */
+  private static boolean immersiveEnabled = true;
 
   /**
    * 系统栏被唤出后，隔多久重新隐藏（毫秒）。
@@ -36,13 +45,14 @@ public class MainActivity extends NavigationActivity {
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-    if (!ENABLE_IMMERSIVE_FULLSCREEN) return;
+    currentInstance = this;
 
     final View decorView = getWindow().getDecorView();
 
     // 兜底：react-native-navigation 在切换页面、应用页面配置时可能会重设系统栏可见性，
     // 所以监听系统栏变化 —— 一旦状态栏又冒出来，延时一点再把它盖回去。
     decorView.setOnSystemUiVisibilityChangeListener(visibility -> {
+      if (!immersiveEnabled) return;
       if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
         decorView.postDelayed(this::applyImmersiveFullscreen, REHIDE_DELAY_MS);
       }
@@ -54,19 +64,40 @@ public class MainActivity extends NavigationActivity {
   @Override
   protected void onResume() {
     super.onResume();
+    currentInstance = this;
     // 从后台 / 锁屏 / 通知栏返回时补一次
-    applyImmersiveFullscreen();
+    if (immersiveEnabled) applyImmersiveFullscreen();
+  }
+
+  @Override
+  protected void onDestroy() {
+    if (currentInstance == this) currentInstance = null;
+    super.onDestroy();
   }
 
   @Override
   public void onWindowFocusChanged(boolean hasFocus) {
     super.onWindowFocusChanged(hasFocus);
     // 输入法收起、音量条消失后重新获得焦点时也补一次
-    if (hasFocus) applyImmersiveFullscreen();
+    if (hasFocus && immersiveEnabled) applyImmersiveFullscreen();
+  }
+
+  /**
+   * 供 JS 调用：开/关沉浸式全屏。
+   * 设置页切换开关时即时生效，不需要重启 App。
+   */
+  public static void setFullscreenEnabled(boolean enable) {
+    immersiveEnabled = enable;
+    MainActivity activity = currentInstance;
+    if (activity == null) return;
+    activity.runOnUiThread(() -> {
+      if (enable) activity.applyImmersiveFullscreen();
+      else activity.exitImmersiveFullscreen();
+    });
   }
 
   private void applyImmersiveFullscreen() {
-    if (!ENABLE_IMMERSIVE_FULLSCREEN) return;
+    if (!immersiveEnabled) return;
 
     Window window = getWindow();
 
@@ -90,5 +121,14 @@ public class MainActivity extends NavigationActivity {
       | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY; // 上滑临时唤出后自动缩回
 
     window.getDecorView().setSystemUiVisibility(uiOptions);
+  }
+
+  /**
+   * 关闭全屏：把系统栏（状态栏 + 导航栏）还原出来。
+   */
+  private void exitImmersiveFullscreen() {
+    Window window = getWindow();
+    window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
   }
 }

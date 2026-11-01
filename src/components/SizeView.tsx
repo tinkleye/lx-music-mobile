@@ -4,6 +4,7 @@ import commonState from '@/store/common/state'
 import settingState from '@/store/setting/state'
 import { setStatusbarHeight } from '@/core/common'
 import { windowSizeTools, getWindowSize } from '@/utils/windowSizeTools'
+import { isFullscreenEnabled } from '@/config/fullscreen'
 
 // 【改造】沉浸式全屏 + 顶部完全贴顶。
 // 官方原逻辑是根据「系统可见区域 vs 实际布局高度」动态推算状态栏高度，
@@ -11,11 +12,9 @@ import { windowSizeTools, getWindowSize } from '@/utils/windowSizeTools'
 // 留着这段逻辑在某些机型（尤其是车机/异形屏）上会算出一个多余的高度，
 // 导致顶部出现一条空白、内容顶不到屏幕上沿。
 // 所以这里统一按 0 处理：标题栏、弹窗、侧边栏全部紧贴屏幕最上边。
-// 如果想恢复官方的动态留白，把 FORCE_TOP_EDGE 改成 false 即可。
-const FORCE_TOP_EDGE = true
-
+// 该行为跟随设置项「启动即全屏」：关闭全屏时自动恢复官方的动态留白逻辑。
 const getStatusbarHeight = (winHeight: number, layoutHeight: number) => {
-  if (FORCE_TOP_EDGE) return 0
+  if (isFullscreenEnabled()) return 0
 
   const height = (!settingState.setting['common.alwaysKeepStatusbarHeight'] &&
           parseFloat(winHeight.toFixed(2)) >= parseFloat(layoutHeight.toFixed(2)))
@@ -63,7 +62,8 @@ export default memo(() => {
     })
 
     const handleSettingUpdate = (keys: Array<keyof LX.AppSetting>) => {
-      if (!keys.includes('common.alwaysKeepStatusbarHeight') || !sizeRef.current[1]) return
+      if (!keys.includes('common.alwaysKeepStatusbarHeight') && !keys.includes('common.startupFullscreen')) return
+      if (!sizeRef.current[1]) return
       const height = getStatusbarHeight(sizeRef.current[0], sizeRef.current[1])
 
       if (currentHeightRef.current != height) {

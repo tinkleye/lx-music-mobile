@@ -22,6 +22,11 @@ declare namespace LX {
       author: string
       homepage: string
       version: string
+      /**
+       * 【改造】导入时记录的来源地址，用于自动检查/拉取更新。
+       * 旧版本导入的源没有该字段，重新在线导入一次即可补上。
+       */
+      sourceUrl?: string
       sources?: UserApiSources
     }
 

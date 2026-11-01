@@ -5,6 +5,7 @@ import {
   SYNC_MODE_MODAL,
 } from './screenNames'
 import themeState from '@/store/theme/state'
+import { isFullscreenEnabled } from '@/config/fullscreen'
 
 
 export const getStatusBarStyle = (isDark: boolean) => isDark ? 'light' : 'dark'
@@ -30,7 +31,7 @@ export const showPactModal = () => {
         },
         statusBar: {
           drawBehind: true,
-          visible: false, // 【改造】沉浸式全屏：弹窗/覆盖层同样不显示系统状态栏
+          visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：弹窗/覆盖层同样不显示系统状态栏
           style: getStatusBarStyle(theme.isDark),
           backgroundColor: 'transparent',
         },
@@ -79,7 +80,7 @@ export const showVersionModal = () => {
         },
         statusBar: {
           drawBehind: true,
-          visible: false, // 【改造】沉浸式全屏：弹窗/覆盖层同样不显示系统状态栏
+          visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：弹窗/覆盖层同样不显示系统状态栏
           style: getStatusBarStyle(theme.isDark),
           backgroundColor: 'transparent',
         },
@@ -128,7 +129,7 @@ export const showSyncModeModal = () => {
         },
         statusBar: {
           drawBehind: true,
-          visible: false, // 【改造】沉浸式全屏：弹窗/覆盖层同样不显示系统状态栏
+          visible: !isFullscreenEnabled(), // 【改造】沉浸式全屏：弹窗/覆盖层同样不显示系统状态栏
           style: getStatusBarStyle(theme.isDark),
           backgroundColor: 'transparent',
         },

@@ -1,12 +1,12 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import Text from '@/components/common/Text'
 import { View, TouchableOpacity, ScrollView } from 'react-native'
-import { confirmDialog, createStyle } from '@/utils/tools'
+import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { useSettingValue } from '@/store/setting/hook'
-import { removeUserApi, setUserApiAllowShowUpdateAlert } from '@/core/userApi'
+import { checkUserApiUpdate, removeUserApi, setUserApiAllowShowUpdateAlert } from '@/core/userApi'
 import { BorderRadius } from '@/theme'
 import CheckBox from '@/components/common/CheckBox'
 import { Icon } from '@/components/common/Icon'
@@ -17,11 +17,13 @@ import { setApiSource } from '@/core/apiSource'
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert }: {
+const ListItem = ({ item, activeId, checking, onRemove, onChangeAllowShowUpdateAlert, onCheckUpdate }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
+  checking: boolean
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
+  onCheckUpdate: (id: string) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
@@ -30,6 +32,9 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert }: {
   }
   const handleRemove = () => {
     onRemove(item.id, item.name)
+  }
+  const handleCheckUpdate = () => {
+    onCheckUpdate(item.id)
   }
 
   return (
@@ -53,9 +58,25 @@ const ListItem = ({ item, activeId, onRemove, onChangeAllowShowUpdateAlert }: {
             <Text size={12} color={theme['c-font-label']}>{item.description}</Text>
           ) : null
         }
+        {
+          // 【改造】显示记录下来的来源地址，方便确认自动更新是否生效
+          item.sourceUrl ? (
+            <Text size={11} color={theme['c-font-label']} numberOfLines={1}>
+              {t('user_api_source_url', { url: item.sourceUrl })}
+            </Text>
+          ) : null
+        }
         <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
       </View>
       <View style={styles.listItemRight}>
+        {
+          // 【改造】记录了来源地址的源可以单独检查更新
+          item.sourceUrl ? (
+            <TouchableOpacity style={styles.btn} onPress={handleCheckUpdate} disabled={checking}>
+              <Icon name="available_updates" color={checking ? theme['c-font-label'] : theme['c-button-font']} />
+            </TouchableOpacity>
+          ) : null
+        }
         <TouchableOpacity style={styles.btn} onPress={handleRemove}>
           <Icon name="close" color={theme['c-button-font']} />
         </TouchableOpacity>
@@ -78,6 +99,7 @@ export default () => {
   const apiSource = useSettingValue('common.apiSource')
   const theme = useTheme()
   const t = useI18n()
+  const [checkingId, setCheckingId] = useState('')
 
   const handleRemove = useCallback(async(id: string, name: string) => {
     const confirm = await confirmDialog({
@@ -98,6 +120,31 @@ export default () => {
   const handleChangeAllowShowUpdateAlert = useCallback((id: string, enabled: boolean) => {
     void setUserApiAllowShowUpdateAlert(id, enabled)
   }, [])
+  const handleCheckUpdate = useCallback(async(id: string) => {
+    if (checkingId) return
+    setCheckingId(id)
+    const result = await checkUserApiUpdate(id)
+    setCheckingId('')
+    switch (result.status) {
+      case 'updated':
+        toast(t('user_api_update_success_tip', {
+          name: result.info.name,
+          version: result.info.version ? `v${result.info.version}` : '',
+        }))
+        break
+      case 'none':
+        toast(t('user_api_check_update_none'))
+        break
+      case 'no_url':
+        toast(t('user_api_no_source_url'), 'long')
+        break
+      case 'failed':
+        toast(t('user_api_check_update_failed', { message: result.message }), 'long')
+        break
+      default:
+        break
+    }
+  }, [checkingId, t])
 
   return (
     <ScrollView style={styles.scrollView} keyboardShouldPersistTaps={'always'}>
@@ -110,8 +157,10 @@ export default () => {
                 key={item.id}
                 item={item}
                 activeId={apiSource}
+                checking={checkingId == item.id}
                 onRemove={handleRemove}
                 onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
+                onCheckUpdate={handleCheckUpdate}
               />
               )
             })
@@ -146,6 +195,8 @@ const styles = createStyle({
   },
   listItemRight: {
     flex: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     // backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   // btns: {
@@ -161,5 +212,4 @@ const styles = createStyle({
     marginBottom: 15,
   },
 })
-
 

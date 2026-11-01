@@ -19,6 +19,8 @@ import androidx.core.app.LocaleManagerCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.os.LocaleListCompat;
 
+import cn.toside.music.mobile.MainActivity;
+
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -96,6 +98,14 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     };
 
     reactContext.registerReceiver(screenOnOffReceiver, theFilter);
+  }
+
+  /**
+   * 【改造】开/关沉浸式全屏，供 JS 设置项「启动即全屏」调用。
+   */
+  @ReactMethod
+  public void setFullscreen(boolean enable) {
+    MainActivity.setFullscreenEnabled(enable);
   }
 
   @ReactMethod

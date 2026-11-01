@@ -6,7 +6,8 @@ import Input, { type InputType } from '@/components/common/Input'
 import { createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
-import { httpFetch } from '@/utils/request'
+import { fetchUserApiScript } from '@/core/userApi'
+import { getUserApiLastSourceUrl, setUserApiLastSourceUrl } from '@/utils/data'
 import { handleImportScript } from './action'
 
 interface UrlInputType {
@@ -61,7 +62,10 @@ export default forwardRef<ScriptImportOnlineType, {}>((props, ref) => {
     alertRef.current?.setVisible(true)
     setBtn({ disabled: false, text: t('user_api_btn_import_online_input_confirm') })
     requestAnimationFrame(() => {
-      urlInputRef.current?.setText('')
+      // 【改造】自动填入上一次使用的源地址，改地址才需要手动输入
+      void getUserApiLastSourceUrl().then(url => {
+        urlInputRef.current?.setText(url)
+      })
       setTimeout(() => {
         urlInputRef.current?.focus()
       }, 300)
@@ -89,18 +93,16 @@ export default forwardRef<ScriptImportOnlineType, {}>((props, ref) => {
     setBtn({ disabled: true, text: t('user_api_btn_import_online_input_loading') })
     let script: string
     try {
-      script = await httpFetch(url).promise.then(resp => resp.body) as string
+      script = await fetchUserApiScript(url)
     } catch (err: any) {
       toast(t('user_api_import_failed_tip', { message: err.message }), 'long')
       return
     } finally {
       setBtn({ disabled: false, text: t('user_api_btn_import_online_input_confirm') })
     }
-    if (script.length > 9_000_000) {
-      toast(t('user_api_import_failed_tip', { message: 'Too large script' }), 'long')
-      return
-    }
-    void handleImportScript(script)
+    // 【改造】记住这个地址：下次自动预填，且后续可据此自动检查更新
+    void setUserApiLastSourceUrl(url)
+    void handleImportScript(script, url)
 
     alertRef.current?.setVisible(false)
   }

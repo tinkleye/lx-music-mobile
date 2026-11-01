@@ -39,7 +39,16 @@ jobs:
           KS_ALIAS="${KEYSTORE_ALIAS:-lxmusic}"
 
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > app/fs-key.keystore
+            # Secret 里存的是 PKCS12（.p12）转的 base64，先还原再用 keytool 转成标准 JKS，
+            # 这样 Gradle 不需要额外指定 storeType，兼容性最好。
+            echo "$KEYSTORE_BASE64" | base64 --decode > app/fs-key.p12
+            keytool -importkeystore \
+              -srckeystore app/fs-key.p12 -srcstoretype PKCS12 \
+              -destkeystore app/fs-key.keystore -deststoretype JKS \
+              -srcstorepass "$KS_PASS" -deststorepass "$KS_PASS" \
+              -srcalias "$KS_ALIAS" -destalias "$KS_ALIAS" \
+              -noprompt
+            rm -f app/fs-key.p12
             echo "→ 使用仓库 Secret 里的固定签名，以后新版本可以直接覆盖安装"
           else
             keytool -genkeypair -v -storetype PKCS12 -keystore app/fs-key.keystore \

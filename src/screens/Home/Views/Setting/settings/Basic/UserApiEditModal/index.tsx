@@ -1,13 +1,17 @@
 import { useRef, useImperativeHandle, forwardRef, useState } from 'react'
 import Text from '@/components/common/Text'
 import { View, TouchableOpacity } from 'react-native'
-import { createStyle, openUrl } from '@/utils/tools'
+import { createStyle, openUrl, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
 import Button from '@/components/common/Button'
 import List from './List'
 import ImportBtn from './ImportBtn'
+import CheckBoxItem from '../../../components/CheckBoxItem'
+import { checkUserApiUpdates } from '@/core/userApi'
+import { updateSetting } from '@/core/common'
+import { useSettingValue } from '@/store/setting/hook'
 
 // interface UrlInputType {
 //   setText: (text: string) => void
@@ -66,8 +70,30 @@ export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
   // const sourceSelectorRef = useRef<SourceSelectorType>(null)
   // const inputRef = useRef<UrlInputType>(null)
   const [visible, setVisible] = useState(false)
+  const [checkingAll, setCheckingAll] = useState(false)
   const theme = useTheme()
   const t = useI18n()
+  // 【改造】启动时自动检查源更新（默认开启）
+  const autoUpdate = useSettingValue('common.autoUpdateUserApi')
+
+  const handleChangeAutoUpdate = (enable: boolean) => {
+    updateSetting({ 'common.autoUpdateUserApi': enable })
+  }
+
+  // 【改造】手动检查全部源更新
+  const handleCheckAll = async() => {
+    if (checkingAll) return
+    setCheckingAll(true)
+    const result = await checkUserApiUpdates()
+    setCheckingAll(false)
+    if (!result.checked) {
+      toast(t('user_api_no_source_url'), 'long')
+      return
+    }
+    if (result.updated) toast(t('user_api_check_update_success', { count: result.updated }))
+    else if (result.failed && !result.updated) toast(t('user_api_check_update_failed', { message: `${result.failed}` }), 'long')
+    else toast(t('user_api_check_update_none'))
+  }
 
   const handleShow = () => {
     dialogRef.current?.setVisible(true)
@@ -107,6 +133,19 @@ export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
               {/* <UrlInput ref={inputRef} /> */}
               <Text size={16} style={styles.title}>{t('user_api_title')}</Text>
               <List />
+              <View style={styles.options}>
+                <CheckBoxItem
+                  check={autoUpdate}
+                  label={t('user_api_auto_update')}
+                  onChange={handleChangeAutoUpdate}
+                  size={0.86}
+                />
+                <TouchableOpacity onPress={handleCheckAll} disabled={checkingAll} style={styles.checkAllBtn}>
+                  <Text size={12} color={theme['c-primary-font']}>
+                    {checkingAll ? t('user_api_checking') : t('user_api_check_update_all')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.tips}>
                 <Text style={styles.tipsText} size={12}>
                   {t('user_api_readme')}
@@ -144,6 +183,17 @@ const styles = createStyle({
     marginBottom: 15,
     textAlign: 'center',
     // backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  },
+  options: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 7,
+    marginTop: 12,
+  },
+  checkAllBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
   tips: {
     paddingHorizontal: 7,
