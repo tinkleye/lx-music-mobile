@@ -9,8 +9,10 @@ import SourceSelector, {
   type SourceSelectorProps as _SourceSelectorProps,
 } from '@/components/SourceSelector'
 import SearchInput, { type SearchInputType, type SearchInputProps } from './SearchInput'
+import SearchTypeSelector from '../SearchTypeSelector'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
+import { isCarModeEnabled } from '@/config/carMode'
 import { type Source as MusicSource } from '@/store/search/music/state'
 import { type Source as SonglistSource } from '@/store/search/songlist/state'
 
@@ -63,6 +65,9 @@ export default forwardRef<HeaderBarType, HeaderBarProps>(({ onSourceChange, onTi
         onBlur={onHideTipList}
         onTouchStart={onShowTipList}
       />
+      {/* 【改造】车机模式：把「歌曲 / 歌单」切换挪到搜索框这一行的最右侧，
+          不再单独占一行，省下一整行高度（车机屏纵向空间紧张） */}
+      {isCarModeEnabled() ? <SearchTypeSelector /> : null}
     </View>
   )
 })

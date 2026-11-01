@@ -34,10 +34,9 @@ const LeftHeader = () => {
   const statusBarHeight = useStatusbarHeight()
 
   const extra = headerComponents[id] ?? null
-  // 【改造】车机模式：标题和左侧导航重复，直接去掉整个标题栏，把纵向空间还给内容
-  // （搜索页的「歌曲/歌单」类型切换保留在顶栏）
-  if (isCarModeEnabled() && !extra) return null
-  const hideTitle = isCarModeEnabled()
+  // 【改造】车机模式：标题与左侧导航重复，且搜索页的「歌曲/歌单」已挪进搜索框那一行，
+  // 因此车机模式下整条标题栏都不需要，纵向空间全部留给内容
+  if (isCarModeEnabled()) return null
 
   return (
     <View style={{
@@ -45,11 +44,9 @@ const LeftHeader = () => {
       height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
       paddingTop: statusBarHeight,
     }}>
-      {hideTitle ? null : (
-        <View style={styles.left}>
-          <Text style={styles.leftTitle} size={18}>{t(id)}</Text>
-        </View>
-      )}
+      <View style={styles.left}>
+        <Text style={styles.leftTitle} size={18}>{t(id)}</Text>
+      </View>
       {extra}
 
       {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
@@ -72,9 +69,8 @@ const RightHeader = () => {
   const statusBarHeight = useStatusbarHeight()
 
   const extra = headerComponents[id] ?? null
-  // 【改造】车机模式：同上，去掉与导航重复的标题
-  if (isCarModeEnabled() && !extra) return null
-  const hideTitle = isCarModeEnabled()
+  // 【改造】车机模式：同上，整条标题栏不渲染
+  if (isCarModeEnabled()) return null
 
   return (
     <View style={{
@@ -82,11 +78,9 @@ const RightHeader = () => {
       height: scaleSizeH(HEADER_HEIGHT) + statusBarHeight,
       paddingTop: statusBarHeight,
     }}>
-      {hideTitle ? null : (
-        <View style={styles.left}>
-          <Text style={styles.rightTitle} size={18}>{t(id)}</Text>
-        </View>
-      )}
+      <View style={styles.left}>
+        <Text style={styles.rightTitle} size={18}>{t(id)}</Text>
+      </View>
       {extra}
       {/* <TouchableOpacity style={styles.btn} onPress={openSetting}>
         <Icon style={{ ...styles.btnText, color: theme['c-font'] }} name="setting" size={styles.btnText.fontSize} />

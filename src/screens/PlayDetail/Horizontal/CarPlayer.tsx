@@ -1,10 +1,10 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
 import Image from '@/components/common/Image'
-import Progress from '@/components/player/Progress'
+import CarProgress from './CarProgress'
 import { useProgress, usePlayerMusicInfo, useIsPlay } from '@/store/player/hook'
 import { useTheme } from '@/store/theme/hook'
 import { pop } from '@/navigation'
@@ -88,7 +88,7 @@ const TimeText = ({ timeStr }: { timeStr: string }) => {
 export default memo(({ coverSize }: { coverSize: number }) => {
   const theme = useTheme()
   const musicInfo = usePlayerMusicInfo()
-  const { maxPlayTimeStr, nowPlayTimeStr, progress, maxPlayTime } = useProgress()
+  const { maxPlayTimeStr, nowPlayTimeStr } = useProgress()
   const isPlay = useIsPlay()
   const popupRef = useRef<SettingPopupType>(null)
 
@@ -154,7 +154,7 @@ export default memo(({ coverSize }: { coverSize: number }) => {
 
       <View style={styles.progressWrap}>
         <View style={styles.progress}>
-          <Progress progress={progress} duration={maxPlayTime} buffered={0} />
+          <CarProgress />
         </View>
         <View style={styles.timeRow}>
           <TimeText timeStr={nowPlayTimeStr} />
@@ -167,8 +167,11 @@ export default memo(({ coverSize }: { coverSize: number }) => {
         <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={handlePlayPrev}>
           <Icon name="prevMusic" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
         </TouchableOpacity>
+        {/* 【修正】原来底色用 c-primary、图标用 c-button-font，两者其实是同一个主色，
+            导致绿底绿图标看不见。改为实心主色底 + 页面背景色图标（浅色主题即白图标、
+            深色主题即深色图标），保证任何主题下都能看清播放/暂停状态 */}
         <TouchableOpacity style={{ ...styles.cotrolBtn, width: bigPlaySize, height: bigPlaySize, borderRadius: bigPlaySize / 2, backgroundColor: theme['c-primary'] }} activeOpacity={0.7} onPress={handleTogglePlay}>
-          <Icon name={isPlay ? 'pause' : 'play'} color={theme['c-button-font']} rawSize={bigPlaySize * 0.5} />
+          <Icon name={isPlay ? 'pause' : 'play'} color={theme['c-content-background']} rawSize={bigPlaySize * 0.5} />
         </TouchableOpacity>
         <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={handlePlayNext}>
           <Icon name="nextMusic" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
