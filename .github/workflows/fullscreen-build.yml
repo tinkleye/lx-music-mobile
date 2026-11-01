@@ -1,0 +1,87 @@
+name: 编译全屏改造版 APK
+
+# 触发方式：
+#   1. 手动：仓库页面 → Actions → 左侧「编译全屏改造版 APK」→ Run workflow
+#   2. 自动：往 master 分支推代码时自动编译
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 1. 拉取仓库代码
+        uses: actions/checkout@v4
+
+      # 复用项目自带的 composite action：Node 18（读 .nvmrc）+ JDK 17 + npm ci
+      - name: 2. 准备编译环境
+        uses: ./.github/actions/setup
+
+      # build.gradle 的 signingConfigs.release 默认会去读 android/keystore.properties，
+      # 没有这个文件连 debug 包都编不出来。所以这里要么用 Secret 里的固定签名，
+      # 要么现场生成一个临时签名，并通过 -PMYAPP_UPLOAD_* 参数传进去，绕过那个文件。
+      - name: 3. 准备签名文件
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+        run: |
+          set -e
+          cd android
+          KS_PASS="${KEYSTORE_PASSWORD:-lxmusic123}"
+          KS_ALIAS="${KEYSTORE_ALIAS:-lxmusic}"
+
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > app/fs-key.keystore
+            echo "→ 使用仓库 Secret 里的固定签名，以后新版本可以直接覆盖安装"
+          else
+            keytool -genkeypair -v -storetype PKCS12 -keystore app/fs-key.keystore \
+              -alias "$KS_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" \
+              -dname "CN=lxmusic, OU=dev, O=dev, L=CN, S=CN, C=CN"
+            echo "→ 本次临时生成签名（下次编译签名会变，安装前要先卸载旧版）"
+          fi
+
+          echo "KS_PASS=$KS_PASS" >> "$GITHUB_ENV"
+          echo "KS_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
+
+      - name: 4. 打包 Release APK
+        shell: bash
+        env:
+          DISABLE_SVG: "1"
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -PMYAPP_UPLOAD_STORE_FILE='fs-key.keystore' \
+            -PMYAPP_UPLOAD_KEY_ALIAS="$KS_ALIAS" \
+            -PMYAPP_UPLOAD_STORE_PASSWORD="$KS_PASS" \
+            -PMYAPP_UPLOAD_KEY_PASSWORD="$KS_PASS" \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
+            --no-daemon
+
+      - name: 5. 删除签名文件（避免留在产物里）
+        if: always()
+        shell: bash
+        run: rm -f android/app/fs-key.keystore
+
+      - name: 6. 列出产物
+        shell: bash
+        run: |
+          cd android/app/build/outputs/apk/release
+          ls -lh *.apk
+          md5sum *.apk
+
+      - name: 7. 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lx-music-fullscreen-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30

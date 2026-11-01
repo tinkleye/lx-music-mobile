@@ -5,7 +5,18 @@ import settingState from '@/store/setting/state'
 import { setStatusbarHeight } from '@/core/common'
 import { windowSizeTools, getWindowSize } from '@/utils/windowSizeTools'
 
+// 【改造】沉浸式全屏 + 顶部完全贴顶。
+// 官方原逻辑是根据「系统可见区域 vs 实际布局高度」动态推算状态栏高度，
+// 再用它给各页面标题栏、弹窗留出顶部白边。全屏之后系统状态栏本来就不显示了，
+// 留着这段逻辑在某些机型（尤其是车机/异形屏）上会算出一个多余的高度，
+// 导致顶部出现一条空白、内容顶不到屏幕上沿。
+// 所以这里统一按 0 处理：标题栏、弹窗、侧边栏全部紧贴屏幕最上边。
+// 如果想恢复官方的动态留白，把 FORCE_TOP_EDGE 改成 false 即可。
+const FORCE_TOP_EDGE = true
+
 const getStatusbarHeight = (winHeight: number, layoutHeight: number) => {
+  if (FORCE_TOP_EDGE) return 0
+
   const height = (!settingState.setting['common.alwaysKeepStatusbarHeight'] &&
           parseFloat(winHeight.toFixed(2)) >= parseFloat(layoutHeight.toFixed(2)))
     ? 0

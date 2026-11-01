@@ -4,6 +4,9 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!-- 【改造】横屏全屏时允许画面铺进刘海/挖孔区域，避免屏幕两侧出现黑边。
+             只有 Android 9（API 27）以上才认这个属性，更老的机型会自动忽略。 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
 </resources>
