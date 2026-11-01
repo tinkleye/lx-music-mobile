@@ -9,4 +9,31 @@
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
+    <!-- 【改造】让 App 内的弹窗（Modal / 下拉菜单 / 各类 Popup）也保持全屏。
+         Android 上 React Native 的 Modal 是一个独立的 Dialog 窗口，有自己的一套窗口参数，
+         不会继承 Activity 的沉浸式（隐藏状态栏）设置，所以一弹出菜单，系统状态栏就会重新
+         冒出来盖在 App 顶部。
+         这里用同名 style 覆盖 react-native 库（react-android AAR）里的定义 —— Android 资源
+         合并规则中 app 模块的优先级高于 library，同名资源以 app 为准，因此只要把 library
+         原本的属性原样抄过来、再补上 windowFullscreen 即可，不影响原有布局。 -->
+    <style name="Theme.FullScreenDialog">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- 【新增】窗口级全屏：弹窗出现时不再带出系统状态栏 -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+
+    <!-- RN 的两个带动画变体，parent 指向上面的同名 style，一并覆盖 -->
+    <style name="Theme.FullScreenDialogAnimatedFade" parent="Theme.FullScreenDialog">
+        <item name="android:windowAnimationStyle">@style/DialogAnimationFade</item>
+    </style>
+
+    <style name="Theme.FullScreenDialogAnimatedSlide" parent="Theme.FullScreenDialog">
+        <item name="android:windowAnimationStyle">@style/DialogAnimationSlide</item>
+    </style>
+
 </resources>

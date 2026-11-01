@@ -146,7 +146,9 @@ export default memo(({ coverSize }: { coverSize: number }) => {
           }} />
         </View>
         <View style={styles.infoText}>
-          <Text numberOfLines={1} size={20}>{musicInfo.name}</Text>
+          {/* 【优化】歌名过长时不再被截断成一行：允许折成两行，超出两行才省略；
+              行高稍微收紧一点，两行时看起来更整齐 */}
+          <Text numberOfLines={2} size={19} style={styles.songName} ellipsizeMode="tail">{musicInfo.name}</Text>
           <Text numberOfLines={1} size={13} color={theme['c-font-label']}>{musicInfo.singer}</Text>
         </View>
         <LoveBtn size={Math.max(sideBtnSize, 40)} />
@@ -217,6 +219,10 @@ const styles = createStyle({
     paddingLeft: 18,
     paddingRight: 10,
     gap: 4,
+  },
+  songName: {
+    // createStyle 会对 lineHeight 做字号缩放，这里写原始值即可
+    lineHeight: 25,
   },
   loveBtn: {
     justifyContent: 'center',
