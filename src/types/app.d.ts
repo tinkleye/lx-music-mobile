@@ -36,6 +36,15 @@ interface GlobalData {
 
   qualityList: LX.QualityList
   apis: Partial<LX.UserApi.UserApiSources>
+  /**
+   * 【改造】同时加载的多个自定义源（主源 + 备用源）的运行时信息，按 apiId 索引。
+   * 备用源需要在主源失败后立刻可用，因此各自持有独立的脚本上下文。
+   */
+  apisMap: Record<string, {
+    apis: Record<string, any>
+    qualityList: LX.QualityList
+    status: boolean
+  }>
   apiInitPromise: [Promise<boolean>, boolean, (success: boolean) => void]
 
   jumpMyListPosition: boolean

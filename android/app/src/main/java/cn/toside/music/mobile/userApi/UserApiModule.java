@@ -9,10 +9,20 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
-import java.lang.Thread;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
+/**
+ * 【改造】支持同时加载多个自定义源（主源 + 备用源）。
+ *
+ * 原实现只有一个 javaScriptThread，加载新脚本会先把旧的销毁掉，
+ * 因此备用源无法与主源共存。这里改为按 apiId 维护一张表，
+ * 每个源各自持有独立的线程与 QuickJS 上下文，互不影响；
+ * 每次调用 shareAction 时显式指定 apiId，事件也会带上 apiId 回传给 JS 层。
+ */
 public class UserApiModule extends ReactContextBaseJavaModule {
-  private JavaScriptThread javaScriptThread;
+  private final Map<String, JavaScriptThread> javaScriptThreads = new HashMap<>();
   private final ReactApplicationContext reactContext;
   private UtilsEvent utilsEvent;
 
@@ -20,7 +30,6 @@ public class UserApiModule extends ReactContextBaseJavaModule {
 
   UserApiModule(ReactApplicationContext reactContext) {
     super(reactContext);
-    this.javaScriptThread = null;
     this.utilsEvent = null;
     this.reactContext = reactContext;
   }
@@ -50,27 +59,39 @@ public class UserApiModule extends ReactContextBaseJavaModule {
   @ReactMethod
   public void loadScript(ReadableMap data) {
     if (this.utilsEvent == null) this.utilsEvent = new UtilsEvent(this.reactContext);
-    if (this.javaScriptThread != null) destroy();
     Bundle info = Arguments.toBundle(data);
-    this.javaScriptThread = new JavaScriptThread(this.reactContext, info);
-    this.javaScriptThread.prepareHandler(new JsHandler(this.reactContext.getMainLooper(), this.utilsEvent));
-    this.javaScriptThread.getHandler().sendEmptyMessage(HandlerWhat.INIT);
-    this.javaScriptThread.setUncaughtExceptionHandler((thread, ex) -> {
+    String apiId = info != null ? info.getString("id", "") : "";
+    if (apiId == null || apiId.isEmpty()) apiId = "default";
+
+    // 同一个源重复加载时先销毁旧线程，避免两个上下文同时存在
+    destroyScript(apiId);
+
+    final JavaScriptThread javaScriptThread = new JavaScriptThread(this.reactContext, info);
+    javaScriptThread.prepareHandler(new JsHandler(this.reactContext.getMainLooper(), this.utilsEvent, apiId));
+    javaScriptThread.getHandler().sendEmptyMessage(HandlerWhat.INIT);
+    javaScriptThread.setUncaughtExceptionHandler((thread, ex) -> {
       Handler jsHandler = javaScriptThread.getHandler();
+      if (jsHandler == null) return;
       Message message = jsHandler.obtainMessage();
       message.what = HandlerWhat.LOG;
       message.obj = new Object[]{"error", "Uncaught exception in JavaScriptThread: " + ex.getMessage()};
       jsHandler.sendMessage(message);
       Log.e("JavaScriptThread", "Uncaught exception in JavaScriptThread: " + ex.getMessage());
     });
-    Log.d("UserApi", "Module Thread id: " + Thread.currentThread().getId());
+    this.javaScriptThreads.put(apiId, javaScriptThread);
+    Log.d("UserApi", "Module Thread id: " + Thread.currentThread().getId() + ", apiId: " + apiId);
   }
 
   @ReactMethod
-  public boolean sendAction(String action, String info) {
-    JavaScriptThread javaScriptThread = this.javaScriptThread;
+  public boolean sendAction(String apiId, String action, String info) {
+    JavaScriptThread javaScriptThread = this.javaScriptThreads.get(apiId);
+    if (javaScriptThread == null && this.javaScriptThreads.size() == 1) {
+      // 兼容没有传 apiId 的旧调用
+      javaScriptThread = this.javaScriptThreads.values().iterator().next();
+    }
     if (javaScriptThread == null) return false;
     Handler jsHandler = javaScriptThread.getHandler();
+    if (jsHandler == null) return false;
     Message message = jsHandler.obtainMessage();
     message.what = HandlerWhat.ACTION;
     message.obj = new Object[]{action, info};
@@ -79,11 +100,18 @@ public class UserApiModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void destroy() {
-    JavaScriptThread javaScriptThread = this.javaScriptThread;
+  public void destroyScript(String apiId) {
+    JavaScriptThread javaScriptThread = this.javaScriptThreads.remove(apiId);
     if (javaScriptThread == null) return;
-    javaScriptThread.getHandler().sendEmptyMessage(HandlerWhat.DESTROY);
+    Handler jsHandler = javaScriptThread.getHandler();
+    if (jsHandler != null) jsHandler.sendEmptyMessage(HandlerWhat.DESTROY);
     javaScriptThread.stopThread();
-    this.javaScriptThread = null;
+  }
+
+  @ReactMethod
+  public void destroy() {
+    for (String apiId : new ArrayList<>(this.javaScriptThreads.keySet())) {
+      destroyScript(apiId);
+    }
   }
 }

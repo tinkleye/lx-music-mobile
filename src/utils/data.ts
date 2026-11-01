@@ -621,6 +621,7 @@ export const updateUserApiScript = async(id: string, script: string, sourceUrl?:
 }
 export const removeUserApi = async(ids: string[]) => {
   if (!userApis) return []
+  const removingIds = [...ids]
   const _ids: string[] = []
   for (let index = userApis.length - 1; index > -1; index--) {
     if (ids.includes(userApis[index].id)) {
@@ -631,6 +632,11 @@ export const removeUserApi = async(ids: string[]) => {
   }
   await saveData(userApiPrefix, userApis)
   if (_ids.length) await removeDataMultiple(_ids)
+  // 【改造】删掉的源如果还在备用列表里，一并清理
+  if (userApiFallbacks?.length) {
+    const remain = userApiFallbacks.filter(id => !removingIds.includes(id))
+    if (remain.length != userApiFallbacks.length) await setUserApiFallbacks(remain)
+  }
   return [...userApis]
 }
 export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean) => {
@@ -638,6 +644,32 @@ export const setUserApiAllowShowUpdateAlert = async(id: string, enable: boolean)
   if (!targetApi) return
   targetApi.allowShowUpdateAlert = enable
   await saveData(userApiPrefix, userApis)
+}
+
+/**
+ * 【改造】备用源列表（有序）。
+ *
+ * 主流设置项只支持基本类型的值，数组存不进设置里，所以单独存一份。
+ * 顺序即优先级：主源取址失败后，按这里的顺序依次尝试。
+ */
+const userApiFallbacksKey = `${userApiPrefix}fallbacks`
+let userApiFallbacks: string[] | null = null
+export const getUserApiFallbacks = async(): Promise<string[]> => {
+  const list = await getData<string[]>(userApiFallbacksKey)
+  userApiFallbacks = Array.isArray(list) ? list.filter(id => typeof id == 'string') : []
+  return [...userApiFallbacks]
+}
+// 同步读取（初始化时已经加载过一次），供取址流程使用
+export const getUserApiFallbacksSync = (): string[] => userApiFallbacks ?? []
+export const setUserApiFallbacks = async(ids: string[]) => {
+  // 去重，保持传入顺序
+  const list: string[] = []
+  for (const id of ids) {
+    if (!id || list.includes(id)) continue
+    list.push(id)
+  }
+  userApiFallbacks = list
+  await saveData(userApiFallbacksKey, list)
 }
 
 // 【改造】记住上一次导入时填写的源地址，下次在线导入自动预填

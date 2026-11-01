@@ -2,15 +2,19 @@ import musicSdk, { findMusic } from '@/utils/musicSdk'
 import {
   // getOtherSource as getOtherSourceFromStore,
   // saveOtherSource as saveOtherSourceFromStore,
+  getUserApiFallbacks,
+  getUserApiFallbacksSync,
   getMusicUrl as getStoreMusicUrl,
   getPlayerLyric as getStoreLyric,
 } from '@/utils/data'
 import { langS2T, toNewMusicInfo, toOldMusicInfo } from '@/utils'
-import { assertApiSupport } from '@/utils/tools'
+import { assertApiSupport, toast } from '@/utils/tools'
 import settingState from '@/store/setting/state'
+import { state as userApiState } from '@/store/userApi'
 import { requestMsg } from '@/utils/message'
+import { ensureUserApiReady } from '@/core/userApi'
 import BackgroundTimer from 'react-native-background-timer'
-import { apis } from '@/utils/musicSdk/api-source'
+import { apis, getQualityList, runWithApi } from '@/utils/musicSdk/api-source'
 
 
 const getOtherSourcePromises = new Map()
@@ -215,6 +219,7 @@ export const getOnlineOtherSourcePicByLocal = async(musicInfo: LX.Music.MusicInf
 
 export const TRY_QUALITYS_LIST = ['flac24bit', 'flac', '320k'] as const
 type TryQualityType = typeof TRY_QUALITYS_LIST[number]
+const ALL_QUALITYS: LX.Quality[] = ['flac24bit', 'flac', 'wav', 'ape', '320k', '192k', '128k']
 export const getPlayQuality = (highQuality: LX.Quality, musicInfo: LX.Music.MusicInfoOnline): LX.Quality => {
   let type: LX.Quality = '128k'
   if (TRY_QUALITYS_LIST.includes(highQuality as TryQualityType)) {
@@ -229,19 +234,51 @@ export const getPlayQuality = (highQuality: LX.Quality, musicInfo: LX.Music.Musi
   return type
 }
 
-export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggleSource, isRefresh, retryedSource = [] }: {
+/**
+ * 【改造】备用源取址时用该源自己的音质表挑音质。
+ * 备用源没有声明支持某个平台（理论上不存在）时，退化为歌曲本身可用的最高音质。
+ */
+const getPlayQualityWithApi = (apiId: string, highQuality: LX.Quality, musicInfo: LX.Music.MusicInfoOnline): LX.Quality => {
+  const list = getQualityList(apiId)[musicInfo.source]
+  const qualitys = musicInfo.meta._qualitys as Record<string, boolean>
+  if (!list?.length) return ALL_QUALITYS.find(q => qualitys[q]) ?? '128k'
+  let type: LX.Quality = '128k'
+  if (TRY_QUALITYS_LIST.includes(highQuality as TryQualityType)) {
+    const t = TRY_QUALITYS_LIST
+      .slice(TRY_QUALITYS_LIST.indexOf(highQuality as TryQualityType))
+      .find(q => qualitys[q] && list.includes(q))
+    if (t) type = t
+  }
+  return type
+}
+
+/**
+ * 发起一次取址请求。apiId 为空表示用当前主源；
+ * 传了 apiId 时只在「同步获取 api 对象」的瞬间切换上下文，不会污染并行请求。
+ */
+const getMusicUrlRequest = (apiId: string | null, musicInfo: LX.Music.MusicInfoOnline, quality: LX.Quality) => {
+  const run = () => musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), quality).promise
+  try {
+    return apiId ? runWithApi(apiId, run) : run()
+  } catch (err: any) {
+    return Promise.reject(err)
+  }
+}
+
+export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggleSource, isRefresh, retryedSource = [], apiId = null }: {
   musicInfos: LX.Music.MusicInfoOnline[]
   quality?: LX.Quality
   onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
   isRefresh: boolean
   retryedSource?: LX.OnlineSource[]
+  apiId?: string | null
 }): Promise<{
   url: string
   musicInfo: LX.Music.MusicInfoOnline
   quality: LX.Quality
   isFromCache: boolean
 }> => {
-  if (!await global.lx.apiInitPromise[0]) throw new Error('source init failed')
+  if (!apiId && !await global.lx.apiInitPromise[0]) throw new Error('source init failed')
 
   let musicInfo: LX.Music.MusicInfoOnline | null = null
   let itemQuality: LX.Quality | null = null
@@ -249,11 +286,14 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
   while (musicInfo = (musicInfos.shift()!)) {
     if (retryedSource.includes(musicInfo.source)) continue
     retryedSource.push(musicInfo.source)
-    if (!assertApiSupport(musicInfo.source)) continue
-    itemQuality = quality ?? getPlayQuality(settingState.setting['player.playQuality'], musicInfo)
+    // 备用源按「支持全平台」处理，不因主源的音质表缺少该平台而跳过
+    if (!apiId && !assertApiSupport(musicInfo.source)) continue
+    itemQuality = quality ?? (apiId
+      ? getPlayQualityWithApi(apiId, settingState.setting['player.playQuality'], musicInfo)
+      : getPlayQuality(settingState.setting['player.playQuality'], musicInfo))
     if (!musicInfo.meta._qualitys[itemQuality]) continue
 
-    console.log('try toggle to: ', musicInfo.source, musicInfo.name, musicInfo.singer, musicInfo.interval)
+    console.log('try toggle to: ', musicInfo.source, musicInfo.name, musicInfo.singer, musicInfo.interval, apiId ?? 'main')
     onToggleSource(musicInfo)
     break
   }
@@ -262,50 +302,40 @@ export const getOnlineOtherSourceMusicUrl = async({ musicInfos, quality, onToggl
   const cachedUrl = await getStoreMusicUrl(musicInfo, itemQuality)
   if (cachedUrl && !isRefresh) return { url: cachedUrl, musicInfo, quality: itemQuality, isFromCache: true }
 
-  let reqPromise
-  try {
-    reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), itemQuality).promise
-  } catch (err: any) {
-    reqPromise = Promise.reject(err)
-  }
   // retryedSource.includes(musicInfo.source)
   // eslint-disable-next-line @typescript-eslint/promise-function-async
-  return reqPromise.then(({ url, type }: { url: string, type: LX.Quality }) => {
+  return getMusicUrlRequest(apiId, musicInfo, itemQuality).then(({ url, type }: { url: string, type: LX.Quality }) => {
     return { musicInfo, url, quality: type, isFromCache: false }
     // eslint-disable-next-line @typescript-eslint/promise-function-async
   }).catch((err: any) => {
     if (err.message == requestMsg.tooManyRequests) throw err
     console.log(err)
-    return getOnlineOtherSourceMusicUrl({ musicInfos, quality, onToggleSource, isRefresh, retryedSource })
+    return getOnlineOtherSourceMusicUrl({ musicInfos, quality, onToggleSource, isRefresh, retryedSource, apiId })
   })
 }
 
-/**
- * 获取在线音乐URL
- */
-export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }: {
+interface GetOnlineMusicUrlParams {
   musicInfo: LX.Music.MusicInfoOnline
   quality?: LX.Quality
   isRefresh: boolean
   allowToggleSource: boolean
   onToggleSource: (musicInfo?: LX.Music.MusicInfoOnline) => void
-}): Promise<{
+}
+
+/**
+ * 在指定音源下取址（含跨平台换源）。apiId 为空表示当前主源。
+ */
+const getOnlineMusicUrlByApi = async(apiId: string | null, { musicInfo, quality, onToggleSource, isRefresh, allowToggleSource }: GetOnlineMusicUrlParams): Promise<{
   url: string
   musicInfo: LX.Music.MusicInfoOnline
   quality: LX.Quality
   isFromCache: boolean
 }> => {
-  if (!await global.lx.apiInitPromise[0]) throw new Error('source init failed')
-  // console.log(musicInfo.source)
-  const targetQuality = quality ?? getPlayQuality(settingState.setting['player.playQuality'], musicInfo)
+  const targetQuality = quality ?? (apiId
+    ? getPlayQualityWithApi(apiId, settingState.setting['player.playQuality'], musicInfo)
+    : getPlayQuality(settingState.setting['player.playQuality'], musicInfo))
 
-  let reqPromise
-  try {
-    reqPromise = musicSdk[musicInfo.source].getMusicUrl(toOldMusicInfo(musicInfo), targetQuality).promise
-  } catch (err: any) {
-    reqPromise = Promise.reject(err)
-  }
-  return reqPromise.then(({ url, type }: { url: string, type: LX.Quality }) => {
+  return getMusicUrlRequest(apiId, musicInfo, targetQuality).then(({ url, type }: { url: string, type: LX.Quality }) => {
     return { musicInfo, url, quality: type, isFromCache: false }
   }).catch(async(err: any) => {
     console.log(err)
@@ -321,11 +351,61 @@ export const handleGetOnlineMusicUrl = async({ musicInfo, quality, onToggleSourc
           quality,
           isRefresh,
           retryedSource: [musicInfo.source],
+          apiId,
         })
       }
       throw err
     })
   })
+}
+
+/**
+ * 获取在线音乐URL。
+ *
+ * 【改造】主源（含跨平台换源）全部失败后，按用户设置的顺序依次尝试备用源，
+ * 对同一首歌再取一次地址。整个过程不修改用户勾选的主源，也不写回歌曲信息，
+ * 所以下一首歌仍然从主源开始。
+ */
+export const handleGetOnlineMusicUrl = async(params: GetOnlineMusicUrlParams): Promise<{
+  url: string
+  musicInfo: LX.Music.MusicInfoOnline
+  quality: LX.Quality
+  isFromCache: boolean
+}> => {
+  if (!await global.lx.apiInitPromise[0]) throw new Error('source init failed')
+
+  let lastError: any
+  try {
+    return await getOnlineMusicUrlByApi(null, params)
+  } catch (err: any) {
+    // 服务器限流时不折腾备用源，交给上层稍后重试
+    if (err?.message == requestMsg.tooManyRequests) throw err
+    lastError = err
+  }
+
+  const activeApi = settingState.setting['common.apiSource']
+  let backups = getUserApiFallbacksSync()
+  // 缓存还没加载（极少见）时补读一次，避免备用源静默失效
+  if (!backups.length) backups = await getUserApiFallbacks().catch(() => [])
+  backups = backups.filter(id => id != activeApi)
+  if (!backups.length) throw lastError
+
+  for (const apiId of backups) {
+    const ready = await ensureUserApiReady(apiId).catch(() => false)
+    if (!ready) continue
+    const name = userApiState.list.find(api => api.id == apiId)?.name
+    toast(global.i18n.t('user_api_backup_trying', { name: name ?? '' }))
+    try {
+      // 备用源只重试「同一首歌」，不再重复跨平台搜索：
+      // 跨平台搜索是内置接口，与脚本无关，主源那轮已经搜过了
+      return await getOnlineMusicUrlByApi(apiId, { ...params, allowToggleSource: false })
+    } catch (err: any) {
+      if (err?.message == requestMsg.tooManyRequests) throw err
+      lastError = err
+    }
+  }
+
+  throw lastError
 }
 
 

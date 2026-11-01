@@ -1,9 +1,9 @@
 import { type InitParams, onScriptAction, sendAction, type ResponseParams, type UpdateInfoParams, type RequestParams } from '@/utils/nativeModules/userApi'
-import { log, setUserApiList, setUserApiStatus } from '@/core/userApi'
+import { log, notifyUserApiInit, setUserApiList, setUserApiStatus } from '@/core/userApi'
 import settingState from '@/store/setting/state'
 import BackgroundTimer from 'react-native-background-timer'
 import { fetchData } from './request'
-import { getUserApiList } from '@/utils/data'
+import { getUserApiFallbacks, getUserApiList } from '@/utils/data'
 import { confirmDialog, openUrl, tipDialog } from '@/utils/tools'
 
 
@@ -17,7 +17,7 @@ export default async(setting: LX.AppSetting) => {
     scriptRequestMap.delete(requestKey)
     target.abort()
   }
-  const sendScriptRequest = (requestKey: string, url: string, options: RequestParams['options']) => {
+  const sendScriptRequest = (requestKey: string, url: string, options: RequestParams['options'], apiId: string) => {
     let req = fetchData(url, options)
     req.request.then(response => {
       // console.log(response)
@@ -25,19 +25,19 @@ export default async(setting: LX.AppSetting) => {
         error: null,
         requestKey,
         response,
-      })
+      }, apiId)
     }).catch(err => {
       sendAction('response', {
         error: err.message,
         requestKey,
         response: null,
-      })
+      }, apiId)
     }).finally(() => {
       scriptRequestMap.delete(requestKey)
     })
     scriptRequestMap.set(requestKey, req)
   }
-  const sendUserApiRequest = async(data: LX.UserApi.UserApiRequestParams) => {
+  const sendUserApiRequest = async(apiId: string, data: LX.UserApi.UserApiRequestParams) => {
     const handleApiUpdate = () => {
       const target = userApiRequestMap.get(data.requestKey)
       if (!target) return
@@ -56,7 +56,7 @@ export default async(setting: LX.AppSetting) => {
           target.reject(new Error('request timeout'))
         }, 20_000),
       })
-      sendAction('request', data)
+      sendAction('request', data, apiId)
     }).finally(() => {
       global.state_event.off('apiSourceUpdated', handleApiUpdate)
     })
@@ -71,123 +71,139 @@ export default async(setting: LX.AppSetting) => {
     if (status) target.resolve(result)
     else target.reject(new Error(errorMessage ?? 'failed'))
   }
-  const handleStateChange = ({ status, errorMessage, info }: InitParams) => {
-    // console.log(status, message, info)
-    setUserApiStatus(status, errorMessage)
-    if (!info || info.id !== settingState.setting['common.apiSource']) return
-    if (status) {
-      if (info.sources) {
-        let apis: any = {}
-        let qualitys: LX.QualityList = {}
-        for (const [source, { actions, type, qualitys: sourceQualitys }] of Object.entries(info.sources)) {
-          if (type != 'music') continue
-          apis[source as LX.Source] = {}
-          for (const action of actions) {
-            switch (action) {
-              case 'musicUrl':
-                apis[source].getMusicUrl = (songInfo: LX.Music.MusicInfo, type: LX.Quality) => {
-                  const requestKey = `request__${Math.random().toString().substring(2)}`
-                  return {
-                    canceleFn() {
-                      // userApiRequestCancel(requestKey)
+
+  // 【改造】按 apiId 构建该源的 apis / 音质表，请求也带上 apiId 发回对应的脚本线程
+  const buildApis = (apiId: string, sources: LX.UserApi.UserApiSources) => {
+    const apis: Record<string, any> = {}
+    const qualitys: LX.QualityList = {}
+    for (const [source, { actions, type, qualitys: sourceQualitys }] of Object.entries(sources)) {
+      if (type != 'music') continue
+      apis[source] = {}
+      for (const action of actions) {
+        switch (action) {
+          case 'musicUrl':
+            apis[source].getMusicUrl = (songInfo: LX.Music.MusicInfo, quality: LX.Quality) => {
+              const requestKey = `request__${Math.random().toString().substring(2)}`
+              return {
+                canceleFn() {
+                  // userApiRequestCancel(requestKey)
+                },
+                promise: sendUserApiRequest(apiId, {
+                  requestKey,
+                  data: {
+                    source,
+                    action: 'musicUrl',
+                    info: {
+                      type: quality,
+                      musicInfo: songInfo,
                     },
-                    promise: sendUserApiRequest({
-                      requestKey,
-                      data: {
-                        source,
-                        action: 'musicUrl',
-                        info: {
-                          type,
-                          musicInfo: songInfo,
-                        },
-                      },
-                      // eslint-disable-next-line @typescript-eslint/promise-function-async
-                    }).then(res => {
-                      // console.log(res)
-                      return { type, url: res.data.url }
-                    }).catch(err => {
-                      console.log(err.message)
-                      throw err
-                    }),
-                  }
-                }
-                break
-              case 'lyric':
-                apis[source].getLyric = (songInfo: LX.Music.MusicInfo) => {
-                  const requestKey = `request__${Math.random().toString().substring(2)}`
-                  return {
-                    canceleFn() {
-                      // userApiRequestCancel(requestKey)
-                    },
-                    promise: sendUserApiRequest({
-                      requestKey,
-                      data: {
-                        source,
-                        action: 'lyric',
-                        info: {
-                          type,
-                          musicInfo: songInfo,
-                        },
-                      },
-                      // eslint-disable-next-line @typescript-eslint/promise-function-async
-                    }).then(res => {
-                      // console.log(res)
-                      return res.data
-                    }).catch(async err => {
-                      console.log(err.message)
-                      return Promise.reject(err)
-                    }),
-                  }
-                }
-                break
-              case 'pic':
-                apis[source].getPic = (songInfo: LX.Music.MusicInfo) => {
-                  const requestKey = `request__${Math.random().toString().substring(2)}`
-                  return {
-                    canceleFn() {
-                      // userApiRequestCancel(requestKey)
-                    },
-                    promise: sendUserApiRequest({
-                      requestKey,
-                      data: {
-                        source,
-                        action: 'pic',
-                        info: {
-                          type,
-                          musicInfo: songInfo,
-                        },
-                      },
-                      // eslint-disable-next-line @typescript-eslint/promise-function-async
-                    }).then(res => {
-                      // console.log(res)
-                      return res.data
-                    }).catch(async err => {
-                      console.log(err.message)
-                      return Promise.reject(err)
-                    }),
-                  }
-                }
-                break
-              default:
-                break
+                  },
+                  // eslint-disable-next-line @typescript-eslint/promise-function-async
+                }).then(res => {
+                  // console.log(res)
+                  return { type: quality, url: res.data.url }
+                }).catch(err => {
+                  console.log(err.message)
+                  throw err
+                }),
+              }
             }
-          }
-          qualitys[source as LX.Source] = sourceQualitys
+            break
+          case 'lyric':
+            apis[source].getLyric = (songInfo: LX.Music.MusicInfo) => {
+              const requestKey = `request__${Math.random().toString().substring(2)}`
+              return {
+                canceleFn() {
+                  // userApiRequestCancel(requestKey)
+                },
+                promise: sendUserApiRequest(apiId, {
+                  requestKey,
+                  data: {
+                    source,
+                    action: 'lyric',
+                    info: {
+                      type,
+                      musicInfo: songInfo,
+                    },
+                  },
+                  // eslint-disable-next-line @typescript-eslint/promise-function-async
+                }).then(res => {
+                  // console.log(res)
+                  return res.data
+                }).catch(async err => {
+                  console.log(err.message)
+                  return Promise.reject(err)
+                }),
+              }
+            }
+            break
+          case 'pic':
+            apis[source].getPic = (songInfo: LX.Music.MusicInfo) => {
+              const requestKey = `request__${Math.random().toString().substring(2)}`
+              return {
+                canceleFn() {
+                  // userApiRequestCancel(requestKey)
+                },
+                promise: sendUserApiRequest(apiId, {
+                  requestKey,
+                  data: {
+                    source,
+                    action: 'pic',
+                    info: {
+                      type,
+                      musicInfo: songInfo,
+                    },
+                  },
+                  // eslint-disable-next-line @typescript-eslint/promise-function-async
+                }).then(res => {
+                  // console.log(res)
+                  return res.data
+                }).catch(async err => {
+                  console.log(err.message)
+                  return Promise.reject(err)
+                }),
+              }
+            }
+            break
+          default:
+            break
         }
-        global.lx.qualityList = qualitys
-        global.lx.apis = apis
-        global.state_event.apiSourceUpdated(settingState.setting['common.apiSource'])
+      }
+      qualitys[source as LX.Source] = sourceQualitys
+    }
+    return { apis, qualitys }
+  }
+
+  const handleStateChange = ({ status, errorMessage, info }: InitParams, eventApiId?: string) => {
+    // console.log(status, message, info)
+    if (!global.lx.apisMap) global.lx.apisMap = {}
+    const apiId = info?.id ?? eventApiId ?? ''
+    const isActiveApi = !!apiId && apiId == settingState.setting['common.apiSource']
+    // 只有主源的状态才同步到设置页展示，备用源的初始化结果不干扰界面
+    if (!apiId || isActiveApi) setUserApiStatus(status, errorMessage)
+
+    if (status) {
+      if (info?.sources && apiId) {
+        const { apis, qualitys } = buildApis(apiId, info.sources)
+        global.lx.apisMap[apiId] = { apis, qualityList: qualitys, status: true }
+        if (isActiveApi) {
+          global.lx.qualityList = qualitys
+          global.lx.apis = apis
+          global.state_event.apiSourceUpdated(apiId)
+        }
       }
     } else {
-      if (errorMessage) {
+      if (apiId) global.lx.apisMap[apiId] = { apis: {}, qualityList: {}, status: false }
+      if (errorMessage && (isActiveApi || !apiId)) {
         void tipDialog({
-          message: `${global.i18n.t('user_api__init_failed_alert', { name: info.name })}\n${errorMessage}`,
+          message: `${global.i18n.t('user_api__init_failed_alert', { name: info?.name ?? apiId })}\n${errorMessage}`,
           // selection: true,
           btnText: global.i18n.t('ok'),
         })
       }
     }
-    if (!global.lx.apiInitPromise[1]) global.lx.apiInitPromise[2](status)
+    if (apiId) notifyUserApiInit(apiId, status)
+    if (isActiveApi && !global.lx.apiInitPromise[1]) global.lx.apiInitPromise[2](status)
   }
   const showUpdateAlert = ({ name, log, updateUrl }: UpdateInfoParams) => {
     if (updateUrl) {
@@ -214,16 +230,17 @@ export default async(setting: LX.AppSetting) => {
 
   onScriptAction((event) => {
     // console.log('script actuon: ', event)
+    const apiId = event.apiId ?? ''
     switch (event.action) {
       case 'init':
         if ((event as unknown as { errorMessage?: string }).errorMessage) event.data.errorMessage = (event as unknown as { errorMessage: string }).errorMessage
-        handleStateChange(event.data)
+        handleStateChange(event.data, apiId)
         break
       case 'response':
         handleUserApiResponse(event.data)
         break
       case 'request':
-        sendScriptRequest(event.data.requestKey, event.data.url, event.data.options)
+        sendScriptRequest(event.data.requestKey, event.data.url, event.data.options, apiId)
         break
       case 'cancelRequest':
         cancelRequest(event.data, 'request canceled')
@@ -253,4 +270,6 @@ export default async(setting: LX.AppSetting) => {
   })
 
   setUserApiList(await getUserApiList())
+  // 【改造】读取备用源顺序，缓存起来供取址时使用
+  await getUserApiFallbacks()
 }

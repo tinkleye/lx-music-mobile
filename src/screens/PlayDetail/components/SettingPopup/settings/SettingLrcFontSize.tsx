@@ -39,7 +39,8 @@ const LrcFontSize = ({ direction }: {
         <Text style={styles.label} color={theme['c-font-label']}>{isSliding ? sliderSize : lrcFontSize}</Text>
         <Slider
           minimumValue={100}
-          maximumValue={300}
+          // 【改造】车机上观看距离远，上限从 300 放宽到 600
+          maximumValue={600}
           onSlidingComplete={handleSlidingComplete}
           onValueChange={handleValueChange}
           onSlidingStart={handleSlidingStart}

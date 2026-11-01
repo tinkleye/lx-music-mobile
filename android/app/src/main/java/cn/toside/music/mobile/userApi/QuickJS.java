@@ -32,9 +32,17 @@ public class QuickJS {
     this.eventHandler = eventHandler;
   }
 
+  // 【改造】可能有多个 QuickJS 实例（主源 + 备用源），原生库只需要初始化一次
+  private static boolean libraryInited = false;
+
   private void init() {
     if (this.isInited) return;
-    QuickJSLoader.init();
+    synchronized (QuickJS.class) {
+      if (!libraryInited) {
+        QuickJSLoader.init();
+        libraryInited = true;
+      }
+    }
     this.key = UUID.randomUUID().toString();
     this.isInited = true;
   }
@@ -214,6 +222,8 @@ public class QuickJS {
   }
 
   public void destroy () {
+    // 【改造】支持多个源后销毁时机变多，脚本没初始化成功时 jsContext 可能为空
+    if (this.jsContext == null) return;
     this.jsContext.destroy();
     this.jsContext = null;
   }

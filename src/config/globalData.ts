@@ -53,6 +53,7 @@ global.lx = {
 
   qualityList: {},
   apis: {},
+  apisMap: {},
   apiInitPromise: [Promise.resolve(false), true, () => {}],
 
   jumpMyListPosition: false,

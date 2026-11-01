@@ -2,9 +2,10 @@ import { NativeEventEmitter, NativeModules } from 'react-native'
 
 const { UserApiModule } = NativeModules
 
-let loadScriptInfo: LX.UserApi.UserApiInfo | null = null
+// 【改造】可能同时加载多个自定义源（主源 + 备用源），这里按 id 分别记录脚本信息
+const loadScriptInfos = new Map<string, LX.UserApi.UserApiInfo>()
 export const loadScript = (info: LX.UserApi.UserApiInfo & { script: string }) => {
-  loadScriptInfo = info
+  loadScriptInfos.set(info.id, info)
   UserApiModule.loadScript({
     id: info.id,
     name: info.name,
@@ -30,8 +31,8 @@ export interface SendActions {
   request: LX.UserApi.UserApiRequestParams
   response: SendResponseParams
 }
-export const sendAction = <T extends keyof SendActions>(action: T, data: SendActions[T]) => {
-  UserApiModule.sendAction(action, JSON.stringify(data))
+export const sendAction = <T extends keyof SendActions>(action: T, data: SendActions[T], apiId: string) => {
+  UserApiModule.sendAction(apiId, action, JSON.stringify(data))
 }
 
 // export const clearAppCache = CacheModule.clearAppCache as () => Promise<void>
@@ -74,18 +75,22 @@ export interface Actions {
   showUpdateAlert: UpdateInfoParams
   log: string
 }
-export type ActionsEvent = { [K in keyof Actions]: { action: K, data: Actions[K] } }[keyof Actions]
+export type ActionsEvent = { [K in keyof Actions]: { action: K, data: Actions[K], apiId?: string } }[keyof Actions]
 
 export const onScriptAction = (handler: (event: ActionsEvent) => void): () => void => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const eventEmitter = new NativeEventEmitter(UserApiModule)
   const eventListener = eventEmitter.addListener('api-action', event => {
     if (event.data) event.data = JSON.parse(event.data as string)
+    // 【改造】事件带上 apiId，用于区分主源与备用源
+    const apiId = (event.apiId as string | undefined) ?? (event.data?.info?.id as string | undefined) ?? ''
+    if (apiId) event.apiId = apiId
+    const scriptInfo = apiId ? loadScriptInfos.get(apiId) : undefined
     if (event.action == 'init') {
-      if (event.data.info) event.data.info = { ...loadScriptInfo, ...event.data.info }
-      else event.data.info = { ...loadScriptInfo }
+      if (event.data.info) event.data.info = { ...scriptInfo, ...event.data.info }
+      else event.data.info = { ...scriptInfo }
     } else if (event.action == 'showUpdateAlert') {
-      if (!loadScriptInfo?.allowShowUpdateAlert) return
+      if (!scriptInfo?.allowShowUpdateAlert) return
     }
     handler(event as ActionsEvent)
   })
@@ -97,4 +102,10 @@ export const onScriptAction = (handler: (event: ActionsEvent) => void): () => vo
 
 export const destroy = () => {
   UserApiModule.destroy()
+}
+
+// 【改造】只销毁指定的源（切换主源时不影响其它备用源）
+export const destroyScript = (apiId: string) => {
+  loadScriptInfos.delete(apiId)
+  UserApiModule.destroyScript(apiId)
 }

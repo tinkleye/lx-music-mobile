@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Text from '@/components/common/Text'
 import { View, TouchableOpacity, ScrollView } from 'react-native'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
@@ -13,17 +13,22 @@ import { Icon } from '@/components/common/Icon'
 import settingState from '@/store/setting/state'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { setApiSource } from '@/core/apiSource'
+import { getUserApiFallbacks, setUserApiFallbacks } from '@/utils/data'
 
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, checking, onRemove, onChangeAllowShowUpdateAlert, onCheckUpdate }: {
+const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRemove, onChangeAllowShowUpdateAlert, onCheckUpdate, onToggleFallback, onMoveFallback }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
   checking: boolean
+  fallbackIndex: number
+  fallbackTotal: number
   onRemove: (id: string, name: string) => void
   onChangeAllowShowUpdateAlert: (id: string, enabled: boolean) => void
   onCheckUpdate: (id: string) => void
+  onToggleFallback: (id: string, enabled: boolean) => void
+  onMoveFallback: (id: string, offset: number) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
@@ -36,9 +41,14 @@ const ListItem = ({ item, activeId, checking, onRemove, onChangeAllowShowUpdateA
   const handleCheckUpdate = () => {
     onCheckUpdate(item.id)
   }
+  const handleToggleFallback = (check: boolean) => {
+    onToggleFallback(item.id, check)
+  }
+  const isActive = activeId == item.id
+  const isFallback = fallbackIndex > -1
 
   return (
-    <View style={{ ...styles.listItem, backgroundColor: activeId == item.id ? theme['c-primary-background-active'] : 'transparent' }}>
+    <View style={{ ...styles.listItem, backgroundColor: isActive ? theme['c-primary-background-active'] : 'transparent' }}>
       <View style={styles.listItemLeft}>
         <Text size={14}>
           {item.name}
@@ -65,6 +75,39 @@ const ListItem = ({ item, activeId, checking, onRemove, onChangeAllowShowUpdateA
               {t('user_api_source_url', { url: item.sourceUrl })}
             </Text>
           ) : null
+        }
+        {
+          // 【改造】主源 / 备用源标记与排序
+          isActive
+            ? <Text size={11} color={theme['c-primary-font']}>{t('user_api_primary_source')}</Text>
+            : (
+                <View style={styles.fallbackRow}>
+                  <CheckBox check={isFallback} label={t('user_api_backup_source')} onChange={handleToggleFallback} size={0.86} />
+                  {
+                    isFallback
+                      ? (
+                          <View style={styles.orderBtns}>
+                            <Text size={11} color={theme['c-font-label']}>{t('user_api_backup_source_order', { index: fallbackIndex + 1 })}</Text>
+                            <TouchableOpacity
+                              style={styles.orderBtn}
+                              disabled={fallbackIndex <= 0}
+                              onPress={() => { onMoveFallback(item.id, -1) }}
+                            >
+                              <Text size={11} color={fallbackIndex <= 0 ? theme['c-350'] : theme['c-primary-font']}>{t('user_api_move_up')}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.orderBtn}
+                              disabled={fallbackIndex >= fallbackTotal - 1}
+                              onPress={() => { onMoveFallback(item.id, 1) }}
+                            >
+                              <Text size={11} color={fallbackIndex >= fallbackTotal - 1 ? theme['c-350'] : theme['c-primary-font']}>{t('user_api_move_down')}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )
+                      : null
+                  }
+                </View>
+              )
         }
         <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
       </View>
@@ -100,6 +143,36 @@ export default () => {
   const theme = useTheme()
   const t = useI18n()
   const [checkingId, setCheckingId] = useState('')
+  // 【改造】备用源列表，顺序即尝试优先级
+  const [fallbacks, setFallbacks] = useState<string[]>([])
+
+  useEffect(() => {
+    void getUserApiFallbacks().then(list => {
+      setFallbacks(list)
+    })
+  }, [])
+
+  const saveFallbacks = useCallback((list: string[]) => {
+    setFallbacks(list)
+    void setUserApiFallbacks(list)
+  }, [])
+
+  const handleToggleFallback = useCallback((id: string, enabled: boolean) => {
+    const list = enabled
+      ? [...fallbacks.filter(item => item != id), id]
+      : fallbacks.filter(item => item != id)
+    saveFallbacks(list)
+  }, [fallbacks, saveFallbacks])
+
+  const handleMoveFallback = useCallback((id: string, offset: number) => {
+    const index = fallbacks.indexOf(id)
+    const target = index + offset
+    if (index < 0 || target < 0 || target >= fallbacks.length) return
+    const list = [...fallbacks]
+    list.splice(index, 1)
+    list.splice(target, 0, id)
+    saveFallbacks(list)
+  }, [fallbacks, saveFallbacks])
 
   const handleRemove = useCallback(async(id: string, name: string) => {
     const confirm = await confirmDialog({
@@ -109,6 +182,7 @@ export default () => {
       bgClose: false,
     })
     if (!confirm) return
+    if (fallbacks.includes(id)) saveFallbacks(fallbacks.filter(item => item != id))
     void removeUserApi([id]).finally(() => {
       if (settingState.setting['common.apiSource'] == id) {
         let backApiId = apiSourceInfo.find(api => !api.disabled)?.id
@@ -116,7 +190,7 @@ export default () => {
         setApiSource(backApiId ?? '')
       }
     })
-  }, [])
+  }, [fallbacks, saveFallbacks])
   const handleChangeAllowShowUpdateAlert = useCallback((id: string, enabled: boolean) => {
     void setUserApiAllowShowUpdateAlert(id, enabled)
   }, [])
@@ -158,15 +232,24 @@ export default () => {
                 item={item}
                 activeId={apiSource}
                 checking={checkingId == item.id}
+                fallbackIndex={fallbacks.indexOf(item.id)}
+                fallbackTotal={fallbacks.length}
                 onRemove={handleRemove}
                 onChangeAllowShowUpdateAlert={handleChangeAllowShowUpdateAlert}
                 onCheckUpdate={handleCheckUpdate}
+                onToggleFallback={handleToggleFallback}
+                onMoveFallback={handleMoveFallback}
               />
               )
             })
             : <Text style={styles.tipText} color={theme['c-font-label']}>{t('user_api_empty')}</Text>
         }
       </View>
+      {
+        fallbacks.length
+          ? <Text style={styles.fallbackTip} size={11} color={theme['c-font-label']}>{t('user_api_backup_source_tip')}</Text>
+          : null
+      }
     </ScrollView>
   )
 }
@@ -210,6 +293,27 @@ const styles = createStyle({
     textAlign: 'center',
     marginTop: 25,
     marginBottom: 15,
+  },
+  // 【改造】备用源勾选与排序
+  fallbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  orderBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  orderBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  fallbackTip: {
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
 })
 

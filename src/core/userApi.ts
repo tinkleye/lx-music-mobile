@@ -1,19 +1,70 @@
 import { action, state } from '@/store/userApi'
 import {
   addUserApi,
+  getUserApiFallbacksSync,
   getUserApiScript,
   parseUserApiScriptInfo,
   removeUserApi as removeUserApiFromStore,
   setUserApiAllowShowUpdateAlert as setUserApiAllowShowUpdateAlertFromStore,
   updateUserApiScript as updateUserApiScriptFromStore,
 } from '@/utils/data'
-import { destroy, loadScript } from '@/utils/nativeModules/userApi'
+import { destroy, destroyScript, loadScript } from '@/utils/nativeModules/userApi'
 import { log as writeLog } from '@/utils/log'
 import { httpFetch } from '@/utils/request'
 import settingState from '@/store/setting/state'
 
 const SCRIPT_MAX_SIZE = 9_000_000
 
+// 【改造】按 apiId 等待脚本初始化完成，供「备用源」按需加载使用
+const apiInitWaiters = new Map<string, (ok: boolean) => void>()
+const apiLoading = new Map<string, Promise<boolean>>()
+
+export const notifyUserApiInit = (apiId: string, ok: boolean) => {
+  const resolve = apiInitWaiters.get(apiId)
+  if (!resolve) return
+  apiInitWaiters.delete(apiId)
+  resolve(ok)
+}
+
+/**
+ * 确保指定的自定义源已加载并初始化完成。
+ * 已加载过的源直接返回；未加载的按需加载脚本并等待初始化结果。
+ */
+export const ensureUserApiReady = async(apiId: string, timeout = 15_000): Promise<boolean> => {
+  if (global.lx.apisMap?.[apiId]?.status) return true
+  let loading = apiLoading.get(apiId)
+  if (loading) return loading
+
+  loading = (async(): Promise<boolean> => {
+    const target = state.list.find(api => api.id === apiId)
+    if (!target) return false
+    let script = ''
+    try {
+      script = await getUserApiScript(apiId)
+    } catch (err) {
+      writeLog.error(err as Error)
+      return false
+    }
+    if (!script) return false
+
+    const wait = new Promise<boolean>(resolve => {
+      const timer = setTimeout(() => {
+        apiInitWaiters.delete(apiId)
+        resolve(false)
+      }, timeout)
+      apiInitWaiters.set(apiId, ok => {
+        clearTimeout(timer)
+        resolve(ok)
+      })
+    })
+    loadScript({ ...target, script })
+    return wait
+  })().finally(() => {
+    apiLoading.delete(apiId)
+  })
+  apiLoading.set(apiId, loading)
+  return loading
+}
 
 export const setUserApi = async(apiId: string) => {
   global.lx.qualityList = {}
@@ -25,8 +76,18 @@ export const setUserApi = async(apiId: string) => {
   loadScript({ ...target, script })
 }
 
-export const destroyUserApi = () => {
+/**
+ * 【改造】销毁自定义源。
+ * 传 apiId 时只销毁这一个（主源切换到内置音源时不能把备用源一起干掉）。
+ */
+export const destroyUserApi = (apiId?: string) => {
+  if (apiId) {
+    destroyScript(apiId)
+    delete global.lx.apisMap[apiId]
+    return
+  }
   destroy()
+  global.lx.apisMap = {}
 }
 
 
@@ -77,13 +138,25 @@ export const updateUserApi = async(id: string, script: string, sourceUrl?: strin
     await setUserApi(id).catch(err => {
       log.error(err)
     })
+  } else if (getUserApiFallbacksSync().includes(id)) {
+    // 备用源更新后先丢掉旧上下文，下次取址时会按需重新加载
+    destroyScript(id)
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    delete global.lx.apisMap[id]
   }
 
   return info
 }
 
 export const removeUserApi = async(ids: string[]) => {
+  const removingIds = [...ids]
   const list = await removeUserApiFromStore(ids)
+  // 【改造】被删除的源如果还加载着，顺手释放它的脚本上下文
+  for (const id of removingIds) {
+    destroyScript(id)
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    delete global.lx.apisMap[id]
+  }
   action.setUserApiList(list)
 }
 
