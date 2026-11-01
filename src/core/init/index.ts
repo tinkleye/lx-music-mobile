@@ -41,7 +41,7 @@ export default async() => {
   const setting = await initSetting()
   bootLog('Setting inited.')
 
-  // 【改造】按设置应用「启动即全屏」（原生默认全屏，关闭时这里把系统栏还原）
+  // 【改造】按「车机模式」应用全屏（原生默认全屏，车机模式关闭时这里把系统栏还原）
   applyFullscreenSetting()
   bootLog('Fullscreen applied.')
   // console.log(setting)

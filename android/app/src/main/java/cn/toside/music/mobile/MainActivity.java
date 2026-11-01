@@ -15,7 +15,7 @@ import com.reactnativenavigation.NavigationActivity;
  * 1. 隐藏顶部状态栏（时间/电量那条）和底部虚拟导航键；
  * 2. 系统栏被任何原因重新唤出后（下拉通知栏、切换页面、输入法弹出），会自动再隐藏；
  * 3. 保留「上滑临时唤出」的系统行为（IMMERSIVE_STICKY），几秒后自动缩回；
- * 4. 由 JS 调用 {@link #setFullscreenEnabled(boolean)} 可实时开/关（设置项「启动即全屏」）。
+ * 4. 由 JS 调用 {@link #setFullscreenEnabled(boolean)} 可实时开/关（跟随「车机模式」开关）。
  *
  * 横屏锁定不在这里，写在 AndroidManifest.xml 的 android:screenOrientation="sensorLandscape"，
  * 这样「只改一个地方」就能恢复成跟随重力感应。
@@ -31,7 +31,7 @@ public class MainActivity extends NavigationActivity {
    * 全屏开关（运行期可变）。
    *
    * 默认 true：App 一启动就是全屏，不会先闪一下状态栏。
-   * JS 初始化完成后会读取设置项，若用户关掉了「启动即全屏」，会调用
+   * JS 初始化完成后会读取「车机模式」开关，若用户关掉了车机模式，会调用
    * setFullscreenEnabled(false) 退出全屏。
    */
   private static boolean immersiveEnabled = true;

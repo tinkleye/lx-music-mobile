@@ -4,6 +4,7 @@ import { bootLog, getBootLog } from '@/utils/bootLog'
 import '@/config/globalData'
 import { getFontSize, getCarMode, getCarUIScale } from '@/utils/data'
 import { setCarModeEnabled, setCarUIScale, getCarUIScale as getActiveUIScale } from '@/config/carMode'
+import { applyFullscreenSetting } from '@/core/fullscreen'
 import { exitApp } from './utils/nativeModules/utils'
 import { windowSizeTools } from './utils/windowSizeTools'
 import { listenLaunchEvent } from './navigation/regLaunchedEvent'
@@ -17,6 +18,9 @@ void Promise.all([getFontSize(), getCarMode(), getCarUIScale(), windowSizeTools.
   // 各个页面的模块，而页面里的 createStyle 只在加载时求值一次。
   setCarUIScale(carUIScale)
   setCarModeEnabled(carMode)
+  // 【改造】全屏已并入车机模式：尽早把原生窗口状态同步好，
+  // 避免关闭车机模式时启动瞬间闪一下系统状态栏
+  applyFullscreenSetting()
   global.lx.fontSize = fontSize * getActiveUIScale()
   bootLog('Font size setting loaded.')
 

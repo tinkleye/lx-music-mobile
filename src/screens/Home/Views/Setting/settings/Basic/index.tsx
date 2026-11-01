@@ -14,7 +14,6 @@ import IsHomePageScroll from './IsHomePageScroll'
 import IsAllowProgressBarSeek from './IsAllowProgressBarSeek'
 import IsUseSystemFileSelector from './IsUseSystemFileSelector'
 import IsAlwaysKeepStatusbarHeight from './IsAlwaysKeepStatusbarHeight'
-import IsStartupFullscreen from './IsStartupFullscreen'
 import IsCarMode from './IsCarMode'
 import CarUIScale from './CarUIScale'
 import IsShowBackBtn from './IsShowBackBtn'
@@ -36,9 +35,9 @@ export default memo(() => {
       <IsHomePageScroll />
       <IsAllowProgressBarSeek />
       <IsUseSystemFileSelector />
+      {/* 【改造】「启动时进入全屏」已并入「车机模式」，不再单独提供开关 */}
       <IsCarMode />
       <CarUIScale />
-      <IsStartupFullscreen />
       <IsAlwaysKeepStatusbarHeight />
       <Theme />
       <DrawerLayoutPosition />

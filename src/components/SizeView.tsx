@@ -12,7 +12,7 @@ import { isFullscreenEnabled } from '@/config/fullscreen'
 // 留着这段逻辑在某些机型（尤其是车机/异形屏）上会算出一个多余的高度，
 // 导致顶部出现一条空白、内容顶不到屏幕上沿。
 // 所以这里统一按 0 处理：标题栏、弹窗、侧边栏全部紧贴屏幕最上边。
-// 该行为跟随设置项「启动即全屏」：关闭全屏时自动恢复官方的动态留白逻辑。
+// 该行为跟随「车机模式」（全屏已并入该模式）：关掉车机模式时自动恢复官方的动态留白逻辑。
 const getStatusbarHeight = (winHeight: number, layoutHeight: number) => {
   if (isFullscreenEnabled()) return 0
 
@@ -62,7 +62,7 @@ export default memo(() => {
     })
 
     const handleSettingUpdate = (keys: Array<keyof LX.AppSetting>) => {
-      if (!keys.includes('common.alwaysKeepStatusbarHeight') && !keys.includes('common.startupFullscreen')) return
+      if (!keys.includes('common.alwaysKeepStatusbarHeight')) return
       if (!sizeRef.current[1]) return
       const height = getStatusbarHeight(sizeRef.current[0], sizeRef.current[1])
 

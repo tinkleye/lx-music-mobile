@@ -14,8 +14,6 @@ const defaultSetting: LX.AppSetting = {
   'common.showExitBtn': true,
   'common.useSystemFileSelector': true,
   'common.alwaysKeepStatusbarHeight': false,
-  // 【改造】启动即全屏（沉浸式）：隐藏状态栏与底部导航栏
-  'common.startupFullscreen': true,
   // 【改造】启动时自动检查自定义源更新
   'common.autoUpdateUserApi': true,
 
