@@ -24,14 +24,14 @@ import PlayModeBtn from './MoreBtn/PlayModeBtn'
 // 【改造】车机模式播放页左栏：参考车机 App 截图重排
 // 顶部：返回 + 封面（黑胶唱片从封面右侧露出一截）+ 歌名/歌手
 // 中部：进度条 + 两端时间
-// 底部：播放模式 / 上一首 / 大圆形播放键 / 下一首，以及一行小功能按钮
+// 底部：播放模式 / 上一首 / 大圆形播放键 / 下一首 / 当前播放列表，以及一行小功能按钮
 
 const TimeText = ({ timeStr }: { timeStr: string }) => {
   const theme = useTheme()
   return <Text size={12} color={theme['c-500']}>{timeStr}</Text>
 }
 
-export default memo(({ coverSize }: { coverSize: number }) => {
+export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowPlayList: () => void }) => {
   const theme = useTheme()
   const musicInfo = usePlayerMusicInfo()
   const { maxPlayTimeStr, nowPlayTimeStr } = useProgress()
@@ -124,6 +124,10 @@ export default memo(({ coverSize }: { coverSize: number }) => {
         <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={handlePlayNext}>
           <Icon name="nextMusic" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
         </TouchableOpacity>
+        {/* 【改造】当前播放列表：点击后在左栏显示队列，10 秒无操作自动返回 */}
+        <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={onShowPlayList}>
+          <Icon name="menu" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.subRow}>
@@ -189,7 +193,8 @@ const styles = createStyle({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 26,
+    // 控制行多了一个「播放列表」按钮，间距略收，避免窄屏下挤出去
+    gap: 20,
   },
   subRow: {
     flexGrow: 0,

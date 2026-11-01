@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { View } from 'react-native'
 import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
 import MyList from './MyList'
@@ -6,8 +7,13 @@ import { useTheme } from '@/store/theme/hook'
 import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/common/DrawerLayoutFixed'
 import { COMPONENT_IDS } from '@/config/constant'
 import { scaleSizeW } from '@/utils/pixelRatio'
+import { createStyle } from '@/utils/tools'
+import { BorderWidths } from '@/theme'
+import { isCarModeEnabled } from '@/config/carMode'
 import type { InitState as CommonState } from '@/store/common/state'
 
+// 【改造】车机模式：列表抽屉改成常驻左栏，不需要再点开
+const carMode = isCarModeEnabled()
 const MAX_WIDTH = scaleSizeW(400)
 
 export default () => {
@@ -52,6 +58,23 @@ export default () => {
   const navigationView = () => <MyList />
   // console.log('render drawer content')
 
+  // 【改造】车机模式：固定左右两栏 —— 左栏是所有列表，右栏是当前列表的歌曲。
+  // 不再用抽屉，所以点导航的「我的列表 / 我的收藏」都能直接看到全部列表。
+  if (carMode) {
+    return (
+      <View style={styles.carContainer}>
+        <View style={{ ...styles.carListPane, borderRightColor: theme['c-border-background'] }}>
+          <View style={styles.carListInner}>
+            <MyList alwaysVisible />
+          </View>
+        </View>
+        <View style={styles.carMain}>
+          <MusicList />
+        </View>
+      </View>
+    )
+  }
+
   return (
     <DrawerLayoutFixed
       ref={drawer}
@@ -68,3 +91,26 @@ export default () => {
     </DrawerLayoutFixed>
   )
 }
+
+const styles = createStyle({
+  carContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  carListPane: {
+    // 【改造】车机模式左栏：所有列表常驻，占屏幕宽度约四分之一
+    width: '24%',
+    flexGrow: 0,
+    flexShrink: 0,
+    borderRightWidth: BorderWidths.normal,
+  },
+  carListInner: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  carMain: {
+    flexGrow: 1,
+    flexShrink: 1,
+    overflow: 'hidden',
+  },
+})

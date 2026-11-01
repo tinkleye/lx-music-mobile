@@ -9,8 +9,9 @@ import ListMusicSort, { type ListMusicSortType } from './ListMusicSort'
 import DuplicateMusic, { type DuplicateMusicType } from './DuplicateMusic'
 
 
-export default () => {
-  const [visible, setVisible] = useState(false)
+// 【改造】alwaysVisible：车机模式下左栏常驻，不需要等抽屉打开事件才渲染
+export default ({ alwaysVisible = false }: { alwaysVisible?: boolean } = {}) => {
+  const [visible, setVisible] = useState(alwaysVisible)
   const listMenuRef = useRef<ListMenuType>(null)
   const listNameEditRef = useRef<ListNameEditType>(null)
   const listMusicSortRef = useRef<ListMusicSortType>(null)

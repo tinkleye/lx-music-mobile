@@ -1,4 +1,4 @@
-import { memo, useEffect } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { View, AppState } from 'react-native'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import StatusBar from '@/components/common/StatusBar'
@@ -15,6 +15,9 @@ import Pic from './Pic'
 import Lyric from './Lyric'
 import Player from './Player'
 import CarPlayer from './CarPlayer'
+import CarPlayList from './CarPlayList'
+import Aside from '@/screens/Home/Horizontal/Aside'
+import { pop } from '@/navigation'
 import { createStyle } from '@/utils/tools'
 import { marginLeftRaw } from './constant'
 import { useStatusbarHeight } from '@/store/common/hook'
@@ -29,6 +32,16 @@ const carMode = isCarModeEnabled()
 export default memo(({ componentId }: { componentId: string }) => {
   const statusBarHeight = useStatusbarHeight()
   const { width: winWidth, height: winHeight } = useWindowSize()
+  // 【改造】车机模式：左栏是否显示「当前播放列表」（默认显示播放界面）
+  const [showPlayList, setShowPlayList] = useState(false)
+  const showPlayListPanel = useCallback(() => { setShowPlayList(true) }, [])
+  const closePlayListPanel = useCallback(() => { setShowPlayList(false) }, [])
+  // 播放页里点击左侧导航：先退出播放页，导航栏那边再切换栏目
+  const handleAsideNavigate = useCallback(() => {
+    setShowPlayList(false)
+    const id = commonState.componentIds.playDetail
+    if (id) void pop(id)
+  }, [])
 
   useEffect(() => {
     setComponentId(COMPONENT_IDS.playDetail, componentId)
@@ -60,17 +73,22 @@ export default memo(({ componentId }: { componentId: string }) => {
   }, [])
 
   if (carMode) {
-    // 【改造】车机模式：参考车机 App 截图改为左右两栏
-    // 左栏：封面(黑胶) + 歌名收藏 + 进度条 + 大播放按钮；右栏：歌词
+    // 【改造】车机模式：左侧常驻导航栏 + 播放区 + 歌词
+    // 左栏：默认显示封面(黑胶)/歌名/进度条/大播放按钮，点「播放列表」按钮时换成当前播放队列
     const contentH = winHeight - statusBarHeight - HEADER_HEIGHT
     const coverSize = Math.min(contentH * 0.32, winWidth * 0.15, 300)
     return (
       <PageContent>
         <StatusBar />
-        <View style={{ flex: 1, paddingTop: statusBarHeight }}>
+        <View style={{ flex: 1, paddingTop: statusBarHeight, flexDirection: 'row' }}>
+          <Aside onBeforeNavigate={handleAsideNavigate} />
           <View style={styles.carBody}>
             <View style={styles.carLeft}>
-              <CarPlayer coverSize={coverSize} />
+              {
+                showPlayList
+                  ? <CarPlayList onClose={closePlayListPanel} />
+                  : <CarPlayer coverSize={coverSize} onShowPlayList={showPlayListPanel} />
+              }
             </View>
             <View style={styles.carLyric}>
               <Lyric />

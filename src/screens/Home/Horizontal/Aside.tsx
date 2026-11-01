@@ -89,10 +89,12 @@ const Header = () => {
 
 type IdType = InitState['navActiveId'] | 'nav_exit' | 'back_home'
 
-const MenuItem = ({ id, icon, onPress }: {
+const MenuItem = ({ id, icon, onPress, clickableActive = false }: {
   id: IdType
   icon: string
   onPress: (id: IdType) => void
+  // 【改造】在播放页复用导航栏时，当前项也要可点（用来退出播放页回主页）
+  clickableActive?: boolean
 }) => {
   const t = useI18n()
   const activeId = useNavActiveId()
@@ -116,12 +118,20 @@ const MenuItem = ({ id, icon, onPress }: {
     </View>
   )
 
-  return isActive
+  return isActive && !clickableActive
     ? <View style={styles.menuItem}>{content}</View>
     : <TouchableOpacity style={styles.menuItem} onPress={() => { onPress(id) }}>{content}</TouchableOpacity>
 }
 
-export default memo(() => {
+export interface AsideProps {
+  /**
+   * 【改造】在播放页里也复用这条导航栏时，点击菜单需要先退出播放页，
+   * 再切换 Home 的导航项，否则用户看不到任何变化（Home 被播放页盖住）。
+   */
+  onBeforeNavigate?: () => void
+}
+
+export default memo(({ onBeforeNavigate }: AsideProps) => {
   const theme = useTheme()
   // console.log('render drawer nav')
   const showBackBtn = useSettingValue('common.showBackBtn')
@@ -143,6 +153,8 @@ export default memo(() => {
         return
     }
 
+    // 先退出播放页（若当前不在 Home），再切换导航项
+    onBeforeNavigate?.()
     global.app_event.changeMenuVisible(false)
     setNavActiveId(id)
   }
@@ -152,7 +164,7 @@ export default memo(() => {
       <Header />
       <ScrollView style={styles.menus}>
         <View style={styles.list}>
-          {NAV_MENUS.map(menu => <MenuItem key={menu.id} id={menu.id} icon={menu.icon} onPress={handlePress} />)}
+          {NAV_MENUS.map(menu => <MenuItem key={menu.id} id={menu.id} icon={menu.icon} onPress={handlePress} clickableActive={!!onBeforeNavigate} />)}
         </View>
       </ScrollView>
       {
