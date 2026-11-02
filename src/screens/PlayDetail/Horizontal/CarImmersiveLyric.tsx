@@ -416,22 +416,26 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     : setting.position == 'bottom' ? 'flex-end' : 'center'
 
   /**
-   * 长句自动缩字：估算整句在这个字号下要占多宽，超出可视宽度就按比例缩小，
-   * 保证整句完整显示。中文/全角按 1 个字宽算，英文数字按 0.56 算，
-   * 再把 letter-spacing 按字符数加进去。缩不下到下限（14）就让它换行，绝不裁字。
+   * 长句显示策略：先换行（最多 maxLines 行），换行后仍放不下才缩小字号。
+   * 估算整句在这个字号下要占多宽，和「每行可视宽 × 行数」的总容量比：
+   * - 容量足够 → 保持原字号，交给系统自然换行
+   * - 容量不够 → 按比例缩小（中文/全角按 1 个字宽、英文数字按 0.56 算，
+   *   letter-spacing 按字符数计入），缩到下限（14）仍放不下就继续换行，绝不裁字。
    */
-  const fitFontSize = (raw: string, base: number, spacing: number) => {
+  const fitFontSize = (raw: string, base: number, spacing: number, maxLines: number) => {
     if (!raw || width <= 0) return base
     const scr = PixelRatio.get()
     const avail = (width - scaleSizeW(64) * 2) * scr
     let em = 0
     for (const ch of raw) em += ch.charCodeAt(0) > 0x2e7f ? 1 : 0.56
     const needed = em * setSpText(base) * scr + raw.length * spacing * scr
-    if (needed <= avail * 0.98) return base
-    return Math.max(Math.floor(base * avail * 0.98 / needed), 14)
+    const capacity = avail * maxLines * 0.98
+    if (needed <= capacity) return base
+    return Math.max(Math.floor(base * capacity / needed), 14)
   }
-  const lyricFit = fitFontSize(display.text, lyricSize, 1.2)
-  const transFit = fitFontSize(display.translation, transSize, 0.8)
+  // 歌词最多两行、译文最多两行：正常长度的句子原字号换行即可，不缩
+  const lyricFit = fitFontSize(display.text, lyricSize, 1.2, 2)
+  const transFit = fitFontSize(display.translation, transSize, 0.8, 2)
 
   return (
     <Animated.View
