@@ -209,7 +209,7 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
                   tipLabel={currentList.length ? carTip : null}
                   emptyComponent={<Text size={13} color={theme['c-font-label']}>{t('car_paged_list_empty')}</Text>}
                   renderItem={(item, index) => (
-                    <View style={{ width: carLayout.cellWidth, height: carLayout.cellHeight }}>
+                    <View style={{ width: carLayout.cellWidth, height: carLayout.cellHeight, alignItems: 'center' }}>
                       <TouchableOpacity
                         activeOpacity={0.6}
                         onPress={() => { onOpenDetail(item, index) }}
