@@ -166,6 +166,9 @@ const styles = createStyle({
     flexGrow: 0,
     flexShrink: 0,
     paddingBottom: 10,
+    // 【优化】当前播放列表左滑退出时，面板会往左滑到导航栏上方，
+    // 文字叠在导航栏图标上很难看；这里裁掉超出本栏的部分
+    overflow: 'hidden',
   },
   carLyric: {
     flexGrow: 1,

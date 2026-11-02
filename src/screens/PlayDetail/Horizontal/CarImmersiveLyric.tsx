@@ -3,6 +3,7 @@ import {
   Animated,
   Easing,
   Image,
+  PanResponder,
   Pressable,
   StyleSheet,
   View,
@@ -14,15 +15,18 @@ import Slider from '@/components/common/Slider'
 import { Icon } from '@/components/common/Icon'
 import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
 import { usePlayerMusicInfo, useProgress } from '@/store/player/hook'
-import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import {
+  CAR_LYRIC_COLORS,
   getCarLyricSetting,
   loadCarLyricSetting,
   saveCarLyricSetting,
   type CarLyricSetting,
 } from '@/config/carLyric'
-import { scaleSizeW, scaleSizeH } from '@/utils/pixelRatio'
+import { CAR_LYRIC_SCRIM } from '@/config/carLyricBg'
+import { scaleSizeW, scaleSizeH, setSpText } from '@/utils/pixelRatio'
+import { useDrag } from '@/utils/hooks'
+import { formatPlayTime2 } from '@/utils/common'
 
 /**
  * 【车机改造】沉浸式歌词
@@ -33,50 +37,85 @@ import { scaleSizeW, scaleSizeH } from '@/utils/pixelRatio'
  *
  * 交互（和常见音乐 App 的沉浸歌词一致）：
  * - 双击空白处：返回原播放界面
- * - 长按空白处：弹出设置面板（字号 / 对齐 / 字重 / 翻译 / 背景），拖动即时生效
+ * - 长按空白处：弹出设置面板（字号 / 字色 / 对齐 / 字重 / 翻译 / 背景），拖动即时生效
  * - 面板打开时点一下：先收起面板
+ * - 底部进度条可直接点按 / 拖动跳转，时间在左下、总时长在右下
  */
 
-/** 屏幕底部那层黑色渐隐：用若干等分色块拼出来，避免为了一个渐变引入三方库 */
-const GradientScrim = memo(({ rgb, from, to, slices = 14 }: { rgb: string, from: number, to: number, slices?: number }) => (
-  <View style={StyleSheet.absoluteFill} pointerEvents="none">
-    {
-      Array.from({ length: slices }, (_, i) => (
-        <View
-          key={i}
-          style={{
-            flex: 1,
-            backgroundColor: `rgba(${rgb},${(from + (to - from) * (i / (slices - 1))).toFixed(3)})`,
-          }}
-        />
-      ))
-    }
-  </View>
-))
+const BAR_HEIGHT = 5
+const THUMB_SIZE = 13
+const TOUCH_HEIGHT = scaleSizeH(40)
 
-/** 底部进度条：单独拆出来，避免每 100ms 的进度更新把大号歌词一起重渲染 */
-const LyricProgress = memo(() => {
-  const { progress } = useProgress()
-  const theme = useTheme()
+/**
+ * 底部进度条 + 时间。
+ *
+ * 拆成独立组件的原因有两个：
+ * 1. 播放进度每几百毫秒变一次，放在主组件里会把大号歌词一起重渲染；
+ * 2. 拖动进度需要自己的手势状态，独立出来后不影响外面的双击/长按判定。
+ */
+const ImmersiveProgress = memo(({ hintVisible, hintLabel }: { hintVisible: boolean, hintLabel: string }) => {
+  const { progress, maxPlayTime, nowPlayTimeStr, maxPlayTimeStr } = useProgress()
+  const [dragging, setDragging] = useState(false)
+  const [dragProgress, setDragProgress] = useState(0)
+  const [width, setWidth] = useState(0)
+  const durationRef = useRef(maxPlayTime)
+
+  useEffect(() => {
+    durationRef.current = maxPlayTime
+  }, [maxPlayTime])
+
+  const onSetProgress = useCallback((p: number) => {
+    global.app_event.setProgress(p * durationRef.current)
+  }, [])
+  const { onLayout, onDragStart, onDragEnd, onDrag } = useDrag(onSetProgress, setDragging, setDragProgress)
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderGrant: (evt, gestureState) => {
+        onDragStart(gestureState.dx, evt.nativeEvent.locationX)
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        onDrag(gestureState.dx)
+      },
+      onPanResponderRelease: () => { onDragEnd() },
+      onPanResponderTerminate: () => { onDragEnd() },
+    }),
+  ).current
+
+  const shown = dragging ? dragProgress : progress
+  const barWidth = Math.max(width * shown, 0)
+  const nowLabel = dragging ? formatPlayTime2(dragProgress * maxPlayTime) : nowPlayTimeStr
+
   return (
-    <View style={styles.progressTrack} pointerEvents="none">
+    <View style={styles.bottomBar} pointerEvents="box-none">
+      <View style={styles.timeRow} pointerEvents="none">
+        <Text size={12} color="rgba(255,255,255,0.62)" style={styles.timeText}>{nowLabel}</Text>
+        <View style={styles.hintSlot}>
+          <Text size={11} color={`rgba(255,255,255,${hintVisible ? 0.32 : 0})`}>{hintLabel}</Text>
+        </View>
+        <Text size={12} color="rgba(255,255,255,0.62)" style={{ ...styles.timeText, textAlign: 'right' }}>{maxPlayTimeStr}</Text>
+      </View>
       <View
-        style={{
-          height: '100%',
-          width: `${Math.min(Math.max(progress, 0), 1) * 100}%`,
-          backgroundColor: theme['c-primary'],
+        style={styles.trackTouch}
+        {...panResponder.panHandlers}
+        onLayout={(e) => {
+          setWidth(e.nativeEvent.layout.width)
+          onLayout(e)
         }}
-      />
-    </View>
-  )
-})
-
-const TimeRow = memo(() => {
-  const { nowPlayTimeStr, maxPlayTimeStr } = useProgress()
-  return (
-    <View style={styles.timeRow} pointerEvents="none">
-      <Text size={11} color="rgba(255,255,255,0.55)">{nowPlayTimeStr}</Text>
-      <Text size={11} color="rgba(255,255,255,0.55)">{maxPlayTimeStr}</Text>
+      >
+        <View style={styles.track} pointerEvents="none" />
+        <View style={{ ...styles.trackFill, width: barWidth }} pointerEvents="none" />
+        <View
+          style={{
+            ...styles.thumb,
+            left: barWidth - THUMB_SIZE / 2,
+            transform: [{ scale: dragging ? 1.15 : 1 }],
+          }}
+          pointerEvents="none"
+        />
+      </View>
     </View>
   )
 })
@@ -114,7 +153,6 @@ const Segment = <T extends string | number>({ label, value, options, onChange }:
 
 export default memo(({ onClose }: { onClose: () => void }) => {
   const t = useI18n()
-  const theme = useTheme()
   const { width, height } = useWindowDimensions()
   const musicInfo = usePlayerMusicInfo()
   const { line } = useLrcPlay()
@@ -144,7 +182,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     void loadCarLyricSetting().then(setSetting)
     Animated.timing(enterOpacity, {
       toValue: 1,
-      duration: 260,
+      duration: 280,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start()
@@ -236,39 +274,62 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   }, [])
 
   const lyricSize = setting.fontSize
-  const transSize = Math.max(Math.round(lyricSize * 0.46), 13)
+  const transSize = Math.max(Math.round(lyricSize * 0.42), 14)
   const isCenter = setting.align == 'center'
   const hasLyric = !!display.text
   const emptyText = t('car_lyric_no_lyric')
+  const showCover = setting.background == 'cover' && !!musicInfo.pic
+  // 模糊半径跟着屏幕短边走：太小看不出模糊，太大安卓会糊成色块
+  const blurRadius = Math.round(Math.min(Math.min(width, height) * 0.035, 40))
 
   return (
-    <Animated.View style={{ ...StyleSheet.absoluteFillObject, opacity: enterOpacity, backgroundColor: '#08080a' }}>
-      {/* ---------- 背景 ---------- */}
+    <Animated.View
+      style={{
+        ...StyleSheet.absoluteFillObject,
+        opacity: enterOpacity,
+        backgroundColor: '#070709',
+        overflow: 'hidden',
+      }}
+    >
+      {/* ---------- 背景：封面模糊 + 大范围压暗 ---------- */}
       {
-        setting.background == 'cover' && musicInfo.pic
+        showCover
           ? (
               <Image
-                source={{ uri: musicInfo.pic }}
-                style={StyleSheet.absoluteFill as any}
+                source={{ uri: musicInfo.pic! }}
+                // 稍微放大一点，裁掉模糊在边缘产生的暗边
+                style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.18 }] }]}
                 resizeMode="cover"
-                blurRadius={Math.round(Math.min(width, height) / 22)}
+                blurRadius={blurRadius}
               />
             )
           : null
       }
-      <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: setting.background == 'cover' ? 'rgba(6,6,8,0.62)' : 'rgba(8,8,10,0.96)' }} pointerEvents="none" />
-      {/* 上下压暗，让中间这句歌词更突出，也压住模糊封面的亮部 */}
-      <GradientScrim rgb="0,0,0" from={0.45} to={0} slices={7} />
-      <View style={{ ...StyleSheet.absoluteFillObject, transform: [{ rotate: '180deg' }] }} pointerEvents="none">
-        <GradientScrim rgb="0,0,0" from={0.55} to={0} slices={9} />
-      </View>
+      <View
+        style={{
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: showCover ? 'rgba(6,7,10,0.56)' : 'rgba(7,7,9,0.97)',
+        }}
+        pointerEvents="none"
+      />
+      {/* 上下压暗：一张拉伸的渐变图，过渡是逐像素的，不会出现色带 */}
+      <Image
+        source={{ uri: CAR_LYRIC_SCRIM }}
+        style={styles.scrimBottom}
+        resizeMode="stretch"
+      />
+      <Image
+        source={{ uri: CAR_LYRIC_SCRIM }}
+        style={styles.scrimTop}
+        resizeMode="stretch"
+      />
 
       {/* ---------- 主体（点按 / 长按都在这一层） ---------- */}
       <Pressable style={styles.touchArea} onPress={handlePress} onLongPress={openPanel} delayLongPress={420} android_disableSound>
         {/* 顶部：正在播放的歌，做得很轻，不抢歌词 */}
         <View style={styles.topBar} pointerEvents="none">
           <View style={styles.topDot} />
-          <Text size={13} color="rgba(255,255,255,0.62)" numberOfLines={1}>
+          <Text size={12} color="rgba(255,255,255,0.55)" numberOfLines={1}>
             {`${musicInfo.name}${musicInfo.singer ? `  ·  ${musicInfo.singer}` : ''}`}
           </Text>
         </View>
@@ -279,16 +340,16 @@ export default memo(({ onClose }: { onClose: () => void }) => {
             <Text
               style={{
                 textAlign: setting.align,
-                lineHeight: Math.round(lyricSize * 1.42),
-                letterSpacing: 1,
+                lineHeight: Math.round(setSpText(lyricSize) * 1.26),
+                letterSpacing: 1.2,
                 fontWeight: setting.bold ? '700' : '400',
-                textShadowColor: 'rgba(0,0,0,0.55)',
+                textShadowColor: 'rgba(0,0,0,0.6)',
                 textShadowOffset: { width: 0, height: 2 },
-                textShadowRadius: 12,
+                textShadowRadius: 16,
                 paddingLeft: isCenter ? 0 : scaleSizeW(6),
               }}
               size={lyricSize}
-              color={hasLyric ? '#fff' : 'rgba(255,255,255,0.35)'}
+              color={hasLyric ? setting.color : 'rgba(255,255,255,0.3)'}
               textBreakStrategy="simple"
             >{hasLyric ? display.text : emptyText}</Text>
             {
@@ -296,16 +357,17 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                 ? (
                     <Text
                       style={{
-                        marginTop: scaleSizeH(14),
+                        marginTop: scaleSizeH(16),
                         textAlign: setting.align,
-                        lineHeight: Math.round(transSize * 1.4),
-                        letterSpacing: 0.6,
+                        lineHeight: Math.round(setSpText(transSize) * 1.35),
+                        letterSpacing: 0.8,
+                        opacity: 0.62,
                         textShadowColor: 'rgba(0,0,0,0.5)',
                         textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 8,
+                        textShadowRadius: 10,
                       }}
                       size={transSize}
-                      color="rgba(255,255,255,0.66)"
+                      color={setting.color}
                       textBreakStrategy="simple"
                     >{display.translation}</Text>
                   )
@@ -313,91 +375,110 @@ export default memo(({ onClose }: { onClose: () => void }) => {
             }
           </Animated.View>
         </View>
-
-        {/* 底部：时间 + 操作提示 */}
-        <View style={styles.bottomBar} pointerEvents="none">
-          <TimeRow />
-          <Animated.View style={{ opacity: showHint ? 1 : 0 }}>
-            <Text size={11} color="rgba(255,255,255,0.42)">{t('car_lyric_hint')}</Text>
-          </Animated.View>
-        </View>
       </Pressable>
 
-      {/* ---------- 底部进度条 ---------- */}
-      <LyricProgress />
+      {/* ---------- 底部：时间 + 可拖动进度条 ---------- */}
+      <ImmersiveProgress hintVisible={showHint && !showSetting} hintLabel={t('car_lyric_hint')} />
 
       {/* ---------- 设置面板 ---------- */}
       {
         showSetting
           ? (
-              <Animated.View
-                style={{
-                  ...styles.panel,
-                  opacity: panelAnim,
-                  transform: [{ translateY: panelAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
-                }}
-              >
-                <View onStartShouldSetResponder={() => true}>
-                  <View style={styles.panelHeader}>
-                    <Text size={15} color="#fff">{t('car_lyric_immersive')}</Text>
-                    <Pressable onPress={closePanel} style={styles.panelClose} hitSlop={8}>
-                      <Icon name="close" size={16} color="rgba(255,255,255,0.7)" />
-                    </Pressable>
-                  </View>
+              <>
+                <Animated.View style={{ ...styles.panelScrim, opacity: panelAnim }} pointerEvents="none" />
+                <Animated.View
+                  style={{
+                    ...styles.panel,
+                    opacity: panelAnim,
+                    transform: [{ translateY: panelAnim.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) }],
+                  }}
+                >
+                  <View style={styles.panelInner} onStartShouldSetResponder={() => true}>
+                    <View style={styles.panelHeader}>
+                      <Text size={15} color="#fff">{t('car_lyric_immersive')}</Text>
+                      <Pressable onPress={closePanel} style={styles.panelClose} hitSlop={8}>
+                        <Icon name="close" size={16} color="rgba(255,255,255,0.7)" />
+                      </Pressable>
+                    </View>
 
-                  {/* 字号 */}
-                  <View style={styles.settingRow}>
-                    <Text size={13} color="rgba(255,255,255,0.65)" style={styles.settingLabel}>{t('car_lyric_font_size')}</Text>
-                    <Slider
-                      value={lyricSize}
-                      minimumValue={20}
-                      maximumValue={80}
-                      step={2}
-                      onValueChange={(value) => { update({ fontSize: Math.round(value) }) }}
+                    {/* 字号 */}
+                    <View style={styles.settingRow}>
+                      <Text size={13} color="rgba(255,255,255,0.65)" style={styles.settingLabel}>{t('car_lyric_font_size')}</Text>
+                      <View style={styles.sliderWrap}>
+                        <Slider
+                          value={lyricSize}
+                          minimumValue={28}
+                          maximumValue={140}
+                          step={2}
+                          onValueChange={(value) => { update({ fontSize: Math.round(value) }) }}
+                        />
+                      </View>
+                      <Text size={13} color="rgba(255,255,255,0.75)" style={styles.settingValue}>{lyricSize}</Text>
+                    </View>
+
+                    {/* 字色 */}
+                    <View style={styles.settingRow}>
+                      <Text size={13} color="rgba(255,255,255,0.65)" style={styles.settingLabel}>{t('car_lyric_font_color')}</Text>
+                      <View style={styles.swatchGroup}>
+                        {
+                          CAR_LYRIC_COLORS.map(color => {
+                            const active = setting.color == color
+                            return (
+                              <Pressable
+                                key={color}
+                                onPress={() => { update({ color }) }}
+                                style={{ ...styles.swatchRing, borderColor: active ? 'rgba(255,255,255,0.9)' : 'transparent' }}
+                                hitSlop={4}
+                              >
+                                <View style={{ ...styles.swatch, backgroundColor: color }} />
+                              </Pressable>
+                            )
+                          })
+                        }
+                      </View>
+                    </View>
+
+                    <Segment
+                      label={t('car_lyric_align')}
+                      value={setting.align}
+                      options={[
+                        { value: 'center', label: t('car_lyric_align_center') },
+                        { value: 'left', label: t('car_lyric_align_left') },
+                      ]}
+                      onChange={value => { update({ align: value }) }}
                     />
-                    <Text size={13} color="rgba(255,255,255,0.75)" style={styles.settingValue}>{lyricSize}</Text>
+                    <Segment
+                      label={t('car_lyric_weight')}
+                      value={setting.bold ? 'bold' : 'normal'}
+                      options={[
+                        { value: 'normal', label: t('car_lyric_weight_normal') },
+                        { value: 'bold', label: t('car_lyric_weight_bold') },
+                      ]}
+                      onChange={value => { update({ bold: value == 'bold' }) }}
+                    />
+                    <Segment
+                      label={t('car_lyric_show_translation')}
+                      value={setting.showTranslation ? 'on' : 'off'}
+                      options={[
+                        { value: 'on', label: t('car_lyric_on') },
+                        { value: 'off', label: t('car_lyric_off') },
+                      ]}
+                      onChange={value => { update({ showTranslation: value == 'on' }) }}
+                    />
+                    <Segment
+                      label={t('car_lyric_bg')}
+                      value={setting.background}
+                      options={[
+                        { value: 'cover', label: t('car_lyric_bg_cover') },
+                        { value: 'dark', label: t('car_lyric_bg_dark') },
+                      ]}
+                      onChange={value => { update({ background: value }) }}
+                    />
+
+                    <Text size={11} color="rgba(255,255,255,0.35)" style={styles.panelTip}>{t('car_lyric_panel_tip')}</Text>
                   </View>
-
-                  <Segment
-                    label={t('car_lyric_align')}
-                    value={setting.align}
-                    options={[
-                      { value: 'center', label: t('car_lyric_align_center') },
-                      { value: 'left', label: t('car_lyric_align_left') },
-                    ]}
-                    onChange={value => { update({ align: value }) }}
-                  />
-                  <Segment
-                    label={t('car_lyric_weight')}
-                    value={setting.bold ? 'bold' : 'normal'}
-                    options={[
-                      { value: 'normal', label: t('car_lyric_weight_normal') },
-                      { value: 'bold', label: t('car_lyric_weight_bold') },
-                    ]}
-                    onChange={value => { update({ bold: value == 'bold' }) }}
-                  />
-                  <Segment
-                    label={t('car_lyric_show_translation')}
-                    value={setting.showTranslation ? 'on' : 'off'}
-                    options={[
-                      { value: 'on', label: t('car_lyric_on') },
-                      { value: 'off', label: t('car_lyric_off') },
-                    ]}
-                    onChange={value => { update({ showTranslation: value == 'on' }) }}
-                  />
-                  <Segment
-                    label={t('car_lyric_bg')}
-                    value={setting.background}
-                    options={[
-                      { value: 'cover', label: t('car_lyric_bg_cover') },
-                      { value: 'dark', label: t('car_lyric_bg_dark') },
-                    ]}
-                    onChange={value => { update({ background: value }) }}
-                  />
-
-                  <Text size={11} color="rgba(255,255,255,0.35)" style={styles.panelTip}>{t('car_lyric_panel_tip')}</Text>
-                </View>
-              </Animated.View>
+                </Animated.View>
+              </>
             )
           : null
       }
@@ -410,7 +491,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     paddingTop: scaleSizeH(22),
-    paddingBottom: scaleSizeH(26),
+    // 给底部时间 + 进度条留出位置，歌词再长也不会压到进度条上
+    paddingBottom: scaleSizeH(78),
   },
   topBar: {
     flexDirection: 'row',
@@ -423,29 +505,83 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
   lyricArea: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: scaleSizeW(56),
+    paddingHorizontal: scaleSizeW(64),
   },
-  bottomBar: {
-    alignItems: 'center',
-    gap: scaleSizeH(6),
-  },
-  timeRow: {
-    flexDirection: 'row',
-    gap: 10,
-    opacity: 0.8,
-  },
-  progressTrack: {
+  // 底部渐变遮罩：图片本身是「上透明 → 下黑」，下边直接铺，上边旋转 180°
+  scrimBottom: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    height: '46%',
+  },
+  scrimTop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '34%',
+    transform: [{ rotate: '180deg' }],
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: scaleSizeW(26),
+    paddingBottom: scaleSizeH(10),
+  },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: scaleSizeW(6),
+    paddingBottom: scaleSizeH(4),
+  },
+  timeText: {
+    minWidth: scaleSizeW(52),
+  },
+  hintSlot: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  trackTouch: {
+    height: TOUCH_HEIGHT,
+    justifyContent: 'center',
+  },
+  track: {
+    height: BAR_HEIGHT,
+    borderRadius: BAR_HEIGHT / 2,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  trackFill: {
+    position: 'absolute',
+    left: 0,
+    top: (TOUCH_HEIGHT - BAR_HEIGHT) / 2,
+    height: BAR_HEIGHT,
+    borderRadius: BAR_HEIGHT / 2,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  thumb: {
+    position: 'absolute',
+    top: (TOUCH_HEIGHT - THUMB_SIZE) / 2,
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: THUMB_SIZE / 2,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
+  },
+  panelScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   panel: {
     position: 'absolute',
@@ -453,17 +589,23 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: scaleSizeW(28),
-    paddingTop: scaleSizeH(14),
-    paddingBottom: scaleSizeH(22),
+    paddingTop: scaleSizeH(12),
+    paddingBottom: scaleSizeH(18),
     backgroundColor: 'rgba(18,18,21,0.97)',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
+  },
+  // 超宽屏下把设置项收在中间，避免滑块被拉成一米长
+  panelInner: {
+    width: '100%',
+    maxWidth: 780,
+    alignSelf: 'center',
   },
   panelHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: scaleSizeH(6),
+    marginBottom: scaleSizeH(4),
   },
   panelClose: {
     width: 32,
@@ -482,8 +624,30 @@ const styles = StyleSheet.create({
     width: scaleSizeW(64),
   },
   settingValue: {
-    width: scaleSizeW(34),
+    width: scaleSizeW(38),
     textAlign: 'right',
+  },
+  sliderWrap: {
+    flex: 1,
+    paddingRight: scaleSizeW(10),
+  },
+  swatchGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scaleSizeW(10),
+  },
+  swatchRing: {
+    width: scaleSizeW(38),
+    height: scaleSizeW(38),
+    borderRadius: scaleSizeW(19),
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatch: {
+    width: scaleSizeW(26),
+    height: scaleSizeW(26),
+    borderRadius: scaleSizeW(13),
   },
   segmentGroup: {
     flexDirection: 'row',
@@ -497,6 +661,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   panelTip: {
-    marginTop: scaleSizeH(8),
+    marginTop: scaleSizeH(6),
   },
 })

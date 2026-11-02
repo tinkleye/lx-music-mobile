@@ -10,6 +10,8 @@ import { getData, saveData } from '@/plugins/storage'
 export interface CarLyricSetting {
   /** 字号（Text 组件的 size 值），车机上默认就比普通歌词大一倍多 */
   fontSize: number
+  /** 歌词颜色，十六进制。除了纯白，暖白/淡黄这类颜色在夜景屏幕上更柔和 */
+  color: string
   align: 'center' | 'left'
   bold: boolean
   showTranslation: boolean
@@ -20,11 +22,22 @@ const STORAGE_KEY = '@car_immersive_lyric'
 
 export const CAR_LYRIC_DEFAULT: CarLyricSetting = {
   fontSize: 42,
+  color: '#FFFFFF',
   align: 'center',
   bold: true,
   showTranslation: true,
   background: 'cover',
 }
+
+/** 可选的字色，都是在深色背景上够亮、又不刺眼的颜色 */
+export const CAR_LYRIC_COLORS = [
+  '#FFFFFF',
+  '#F5E7C8',
+  '#FFD166',
+  '#9BE7C4',
+  '#8ED1FC',
+  '#FFA6C1',
+] as const
 
 let setting: CarLyricSetting = { ...CAR_LYRIC_DEFAULT }
 let isLoaded = false

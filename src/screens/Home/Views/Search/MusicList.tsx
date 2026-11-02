@@ -2,6 +2,10 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import OnlineList, { type OnlineListType, type OnlineListProps } from '@/components/OnlineList'
 import { search } from '@/core/search/music'
 import searchMusicState, { type Source } from '@/store/search/music/state'
+import { isCarModeEnabled } from '@/config/carMode'
+
+// 【优化】车机模式下搜索结果也改成一屏一页左右翻
+const carMode = isCarModeEnabled()
 
 // export type MusicListProps = Pick<OnlineListProps,
 // 'onLoadMore'
@@ -83,6 +87,8 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     onRefresh={handleRefresh}
     onLoadMore={handleLoadMore}
     checkHomePagerIdle
+    // 【优化】搜索结果也跟排行榜/我的列表一致：车机上一屏一页左右翻
+    paged={carMode}
   />
 })
 

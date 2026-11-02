@@ -546,6 +546,7 @@
   "car_paged_list_empty": "這裡還沒有內容",
   "car_lyric_immersive": "沉浸式歌詞",
   "car_lyric_font_size": "字號",
+  "car_lyric_font_color": "字色",
   "car_lyric_align": "對齊",
   "car_lyric_align_center": "置中",
   "car_lyric_align_left": "靠左對齊",

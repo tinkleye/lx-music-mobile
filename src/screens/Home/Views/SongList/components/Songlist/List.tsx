@@ -145,24 +145,28 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
   const carLayout = useMemo(() => {
     if (!carMode || !width || !height) return null
     const gap = scaleSizeW(12)
+    // 【优化】左右各留一点空白，别让第一列封面贴着左侧导航栏；
+    // 留白算在内容宽度里，所以左右一定等宽，不会出现「左贴边、右空旷」
+    const pad = scaleSizeW(14)
+    const contentWidth = Math.max(width - pad * 2, 0)
     const cellHeight = height / CAR_ROWS
     const lineHeight = Math.round(setSpText(12) * 1.35)
     const titleHeight = lineHeight * 2 + scaleSizeH(6)
     // 纵向留给封面的最大高度（扣掉两行标题和间距）
     const coverMax = Math.max(cellHeight - titleHeight - gap, scaleSizeW(40))
     // 横向能放几列，封面尽量接近正方形
-    let cols = Math.floor(width / (coverMax + gap))
+    let cols = Math.floor(contentWidth / (coverMax + gap))
     cols = Math.max(2, Math.min(cols, 8))
-    const cellWidth = width / cols
+    const cellWidth = contentWidth / cols
     const cover = Math.min(cellWidth - gap, coverMax)
-    return { gap, cellHeight, lineHeight, titleHeight, cols, cellWidth, cover }
+    return { gap, pad, cellHeight, lineHeight, titleHeight, cols, cellWidth, cover }
   }, [width, height])
 
   const carTip = useMemo(() => {
     switch (status) {
       case 'loading': return t('list_loading')
-      case 'end': return t('list_end')
       case 'error': return t('list_error')
+      // 【优化】翻到头不再显示「到底啦」
       default: return null
     }
   }, [status, t])
@@ -200,6 +204,7 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
                   itemHeight={carLayout.cellHeight}
                   numColumns={carLayout.cols}
                   keyExtractor={item => item.id}
+                  paddingHorizontal={carLayout.pad}
                   onEndReached={handleLoadMore}
                   tipLabel={currentList.length ? carTip : null}
                   emptyComponent={<Text size={13} color={theme['c-font-label']}>{t('car_paged_list_empty')}</Text>}

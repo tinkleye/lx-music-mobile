@@ -1,5 +1,12 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react'
-import { FlatList, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  Animated,
+  FlatList,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native'
 
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
@@ -19,6 +26,11 @@ import Text from './Text'
  * - 需要在有确定宽高的父容器里使用（它自己铺满父容器）
  * - itemHeight 是一行的高度，用来算一页能放几行
  * - numColumns 是一行放几列（车机宽屏一般 2 列）
+ *
+ * 翻页手感：
+ * - 页面内容跟随滑动做「交叉淡入淡出 + 轻微视差」，滑到一半时新旧两页
+ *   一起可见，不会像原来那样「啪」地一声整块换掉
+ * - 动画值直接交给原生驱动，滑动过程中不占用 JS 线程
  */
 
 export interface CarPagedListType {
@@ -42,16 +54,45 @@ export interface CarPagedListProps<T> {
   keyExtractor?: (item: T, index: number) => string
   /** 翻到最后一页时触发（用于加载更多） */
   onEndReached?: () => void
-  onPageChange?: (page: number, pageCount: number) => void
-  /** 底部左侧的状态提示，如「加载中…」「已到底」 */
+  /** 底部左侧的状态提示，如「加载中…」 */
   tipLabel?: string | null
   /** 数据为空时显示的内容 */
   emptyComponent?: ReactNode
-  /** 是否显示右下角页码 */
-  showPageIndicator?: boolean
-  /** 页面内边距 */
+  /** 页面内边距（左右同宽） */
   paddingHorizontal?: number
 }
+
+/** FlatList 套上 Animated，才能把滚动位置直接交给原生动画驱动 */
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as any
+
+/** 单页容器：根据自己离屏幕中心的距离做淡入淡出 + 视差 */
+const Page = memo(({ index, width, height, paddingHorizontal, scrollX, children }: {
+  index: number
+  width: number
+  height: number
+  paddingHorizontal: number
+  scrollX: Animated.Value
+  children: ReactNode
+}) => {
+  const inputRange = [(index - 1) * width, index * width, (index + 1) * width]
+  // 滑走的那一页淡到一半，滑进来的那一页从一半淡上来；位移只有 6% 屏宽，
+  // 够看出「翻过去」的方向感，又不会晕。淡得太多会像闪一下，所以只淡到 0.5
+  const opacity = scrollX.interpolate({ inputRange, outputRange: [0.5, 1, 0.5], extrapolate: 'clamp' })
+  const translateX = scrollX.interpolate({ inputRange, outputRange: [width * 0.06, 0, -width * 0.06], extrapolate: 'clamp' })
+  return (
+    <Animated.View
+      style={{
+        width,
+        height,
+        paddingHorizontal,
+        opacity,
+        transform: [{ translateX }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  )
+})
 
 function CarPagedListInner<T>({
   data,
@@ -59,16 +100,13 @@ function CarPagedListInner<T>({
   numColumns = 1,
   renderItem,
   onEndReached,
-  onPageChange,
   tipLabel,
   emptyComponent,
-  showPageIndicator = true,
   paddingHorizontal = 0,
 }: CarPagedListProps<T>, ref: React.ForwardedRef<CarPagedListType>) {
   const theme = useTheme()
   const listRef = useRef<FlatList<(T | null)[]>>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
-  const [page, setPage] = useState(0)
   const pageRef = useRef(0)
   const lastPageSizeRef = useRef(0)
   // 有些页面（如「我的列表」）会在列表还没完成布局时就要跳转到当前播放的歌，
@@ -76,6 +114,8 @@ function CarPagedListInner<T>({
   const pendingIndexRef = useRef<number | null>(null)
   // onEndReached 在翻页时会连续触发多次，这里做个简单的去抖
   const endReachedLockRef = useRef(false)
+  // 横向滚动位置：页面淡入淡出、视差都跟着它走
+  const scrollX = useRef(new Animated.Value(0)).current
 
   const cols = Math.max(1, Math.trunc(numColumns))
   const innerWidth = Math.max(size.width - paddingHorizontal * 2, 0)
@@ -103,7 +143,6 @@ function CarPagedListInner<T>({
     const target = Math.max(0, Math.min(next, pageCount - 1))
     if (!innerWidth) return
     pageRef.current = target
-    setPage(target)
     try {
       listRef.current?.scrollToOffset({ offset: target * innerWidth, animated })
     } catch {}
@@ -173,11 +212,7 @@ function CarPagedListInner<T>({
   const handleMomentumEnd = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!innerWidth) return
     const next = Math.round(nativeEvent.contentOffset.x / innerWidth)
-    if (next != pageRef.current) {
-      pageRef.current = next
-      setPage(next)
-      onPageChange?.(next, pageCount)
-    }
+    pageRef.current = next
     // 翻到最后一页 → 该加载下一页数据了
     if (next >= pageCount - 1 && !endReachedLockRef.current) {
       endReachedLockRef.current = true
@@ -187,7 +222,13 @@ function CarPagedListInner<T>({
   }
 
   const renderPage = ({ item: pageData, index: pageIndex }: { item: (T | null)[], index: number }) => (
-    <View style={{ width: innerWidth, height: size.height, paddingHorizontal }}>
+    <Page
+      index={pageIndex}
+      width={innerWidth}
+      height={size.height}
+      paddingHorizontal={paddingHorizontal}
+      scrollX={scrollX}
+    >
       {
         Array.from({ length: rows }, (_, row) => (
           <View key={row} style={{ flexDirection: 'row', height: itemHeight }}>
@@ -205,7 +246,7 @@ function CarPagedListInner<T>({
           </View>
         ))
       }
-    </View>
+    </Page>
   )
 
   const showEmpty = !data.length && !!emptyComponent
@@ -215,21 +256,30 @@ function CarPagedListInner<T>({
       {
         size.width > 0 && pageCount
           ? (
-              <FlatList
+              <AnimatedFlatList
                 ref={listRef}
                 style={{ width: size.width, height: size.height }}
                 data={pages}
                 horizontal
                 pagingEnabled
+                // 翻页时不要回弹：一页就是终点，松手直接落位
+                bounces={false}
+                overScrollMode="never"
+                // 让「甩一下」只翻一页，手感更可控
+                decelerationRate="fast"
                 showsHorizontalScrollIndicator={false}
                 scrollEventThrottle={16}
+                onScroll={Animated.event(
+                  [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                  { useNativeDriver: true },
+                )}
                 keyExtractor={(item, index) => `page_${index}`}
                 renderItem={renderPage}
                 getItemLayout={(_, index) => ({ length: innerWidth, offset: innerWidth * index, index })}
                 onMomentumScrollEnd={handleMomentumEnd}
-                initialNumToRender={2}
-                maxToRenderPerBatch={2}
-                windowSize={3}
+                initialNumToRender={3}
+                maxToRenderPerBatch={3}
+                windowSize={5}
               />
             )
           : null
@@ -237,16 +287,6 @@ function CarPagedListInner<T>({
       {
         showEmpty
           ? <View style={styles.empty}>{emptyComponent}</View>
-          : null
-      }
-      {/* 页码提示：车机上翻页没有滚动条，用右下角一个小页码告诉用户「还有多少页」 */}
-      {
-        showPageIndicator && pageCount > 1
-          ? (
-              <View style={styles.indicator} pointerEvents="none">
-                <Text size={11} color={theme['c-350']}>{`${Math.min(page + 1, pageCount)} / ${pageCount}`}</Text>
-              </View>
-            )
           : null
       }
       {
@@ -275,17 +315,6 @@ const styles = createStyle({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  indicator: {
-    position: 'absolute',
-    right: 12,
-    bottom: 6,
-    paddingLeft: 6,
-    paddingRight: 6,
-    paddingTop: 1,
-    paddingBottom: 1,
-    borderRadius: 8,
-    backgroundColor: 'rgba(128,128,128,0.18)',
   },
   tip: {
     position: 'absolute',
