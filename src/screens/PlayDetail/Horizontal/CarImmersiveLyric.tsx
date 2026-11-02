@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Animated,
   Easing,
   Image,
   PanResponder,
+  PixelRatio,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -172,34 +173,38 @@ const ImmersiveBar = memo(({ visible, onInteract }: { visible: boolean, onIntera
   )
 })
 
-/** 设置面板里的一个分段选择项 */
-const Segment = <T extends string | number>({ label, value, options, onChange }: {
-  label: string
+/** 设置面板：两栏网格里的一个格子（标签在上，控件在下） */
+const Cell = ({ label, children }: { label: string, children: ReactNode }) => (
+  <View style={styles.cell}>
+    <Text size={12} color="rgba(255,255,255,0.5)" numberOfLines={1} style={styles.cellLabel}>{label}</Text>
+    <View style={styles.cellBody}>{children}</View>
+  </View>
+)
+
+/** 一组分段选择按钮（紧凑版，面板里两栏并排用） */
+const Options = <T extends string | number>({ value, options, onChange }: {
   value: T
   options: Array<{ value: T, label: string }>
   onChange: (value: T) => void
 }) => (
-  <View style={styles.settingRow}>
-    <Text size={13} color="rgba(255,255,255,0.65)" style={styles.settingLabel}>{label}</Text>
-    <View style={styles.segmentGroup}>
-      {
-        options.map(option => {
-          const active = option.value == value
-          return (
-            <Pressable
-              key={String(option.value)}
-              onPress={() => { onChange(option.value) }}
-              style={{
-                ...styles.segment,
-                backgroundColor: active ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.10)',
-              }}
-            >
-              <Text size={13} color={active ? '#111' : 'rgba(255,255,255,0.75)'}>{option.label}</Text>
-            </Pressable>
-          )
-        })
-      }
-    </View>
+  <View style={styles.optionRow}>
+    {
+      options.map(option => {
+        const active = option.value == value
+        return (
+          <Pressable
+            key={String(option.value)}
+            onPress={() => { onChange(option.value) }}
+            style={{
+              ...styles.segment,
+              backgroundColor: active ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.10)',
+            }}
+          >
+            <Text size={12} color={active ? '#111' : 'rgba(255,255,255,0.75)'}>{option.label}</Text>
+          </Pressable>
+        )
+      })
+    }
   </View>
 )
 
@@ -410,6 +415,24 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     ? 'flex-start'
     : setting.position == 'bottom' ? 'flex-end' : 'center'
 
+  /**
+   * 长句自动缩字：估算整句在这个字号下要占多宽，超出可视宽度就按比例缩小，
+   * 保证整句完整显示。中文/全角按 1 个字宽算，英文数字按 0.56 算，
+   * 再把 letter-spacing 按字符数加进去。缩不下到下限（14）就让它换行，绝不裁字。
+   */
+  const fitFontSize = (raw: string, base: number, spacing: number) => {
+    if (!raw || width <= 0) return base
+    const scr = PixelRatio.get()
+    const avail = (width - scaleSizeW(64) * 2) * scr
+    let em = 0
+    for (const ch of raw) em += ch.charCodeAt(0) > 0x2e7f ? 1 : 0.56
+    const needed = em * setSpText(base) * scr + raw.length * spacing * scr
+    if (needed <= avail * 0.98) return base
+    return Math.max(Math.floor(base * avail * 0.98 / needed), 14)
+  }
+  const lyricFit = fitFontSize(display.text, lyricSize, 1.2)
+  const transFit = fitFontSize(display.translation, transSize, 0.8)
+
   return (
     <Animated.View
       style={{
@@ -474,7 +497,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
             <Text
               style={{
                 textAlign: setting.align,
-                lineHeight: Math.round(setSpText(lyricSize) * 1.26),
+                lineHeight: Math.round(setSpText(lyricFit) * 1.26),
                 letterSpacing: 1.2,
                 fontWeight: setting.bold ? '700' : '400',
                 fontFamily,
@@ -483,7 +506,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                 textShadowRadius: 16,
                 paddingLeft: isCenter ? 0 : scaleSizeW(6),
               }}
-              size={lyricSize}
+              size={lyricFit}
               color={hasLyric ? setting.color : 'rgba(255,255,255,0.3)'}
               textBreakStrategy="simple"
             >{hasLyric ? display.text : emptyText}</Text>
@@ -494,7 +517,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                       style={{
                         marginTop: scaleSizeH(16),
                         textAlign: setting.align,
-                        lineHeight: Math.round(setSpText(transSize) * 1.35),
+                        lineHeight: Math.round(setSpText(transFit) * 1.35),
                         letterSpacing: 0.8,
                         opacity: 0.62,
                         fontFamily,
@@ -502,7 +525,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                         textShadowOffset: { width: 0, height: 1 },
                         textShadowRadius: 10,
                       }}
-                      size={transSize}
+                      size={transFit}
                       color={setting.color}
                       textBreakStrategy="simple"
                     >{display.translation}</Text>
@@ -548,147 +571,174 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                       </Pressable>
                     </View>
 
-                    {/* 设置项变多了，面板能滚，小屏也不会顶到屏幕外面 */}
+                    {/* 设置项排成两栏网格，尽量一屏放下；小屏时面板本身还能滚 */}
                     <ScrollView
-                      style={{ maxHeight: height * 0.64 }}
+                      style={{ maxHeight: height * 0.6 }}
                       showsVerticalScrollIndicator={false}
                       bounces={false}
                       overScrollMode="never"
                     >
-                      {/* 字号 */}
-                      <View style={styles.settingRow}>
-                        <Text size={13} color="rgba(255,255,255,0.65)" style={styles.settingLabel}>{t('car_lyric_font_size')}</Text>
-                        <View style={styles.sliderWrap}>
-                          <Slider
-                            value={lyricSize}
-                            minimumValue={28}
-                            maximumValue={140}
-                            step={2}
-                            onValueChange={(value) => { update({ fontSize: Math.round(value) }) }}
+                      {/* 第 1 行：字号 | 字色 */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_font_size')}>
+                          <View style={styles.sliderWrap}>
+                            <Slider
+                              value={lyricSize}
+                              minimumValue={28}
+                              maximumValue={140}
+                              step={2}
+                              onValueChange={(value) => { update({ fontSize: Math.round(value) }) }}
+                            />
+                          </View>
+                          <Text size={12} color="rgba(255,255,255,0.75)" style={styles.cellValue}>{lyricSize}</Text>
+                        </Cell>
+                        <Cell label={t('car_lyric_font_color')}>
+                          <View style={styles.swatchGroup}>
+                            {
+                              CAR_LYRIC_COLORS.map(color => {
+                                const active = setting.color == color
+                                return (
+                                  <Pressable
+                                    key={color}
+                                    onPress={() => { update({ color }) }}
+                                    style={{ ...styles.swatchRing, borderColor: active ? 'rgba(255,255,255,0.9)' : 'transparent' }}
+                                    hitSlop={4}
+                                  >
+                                    <View style={{ ...styles.swatch, backgroundColor: color }} />
+                                  </Pressable>
+                                )
+                              })
+                            }
+                          </View>
+                        </Cell>
+                      </View>
+
+                      {/* 第 2 行：字体 | 位置 */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_font')}>
+                          <Options
+                            value={setting.fontFamily}
+                            options={[
+                              { value: 'default', label: t('car_lyric_font_default') },
+                              { value: 'light', label: t('car_lyric_font_light') },
+                              { value: 'serif', label: t('car_lyric_font_serif') },
+                              { value: 'mono', label: t('car_lyric_font_mono') },
+                            ]}
+                            onChange={value => { update({ fontFamily: value }) }}
                           />
-                        </View>
-                        <Text size={13} color="rgba(255,255,255,0.75)" style={styles.settingValue}>{lyricSize}</Text>
+                        </Cell>
+                        <Cell label={t('car_lyric_position')}>
+                          <Options
+                            value={setting.position}
+                            options={[
+                              { value: 'top', label: t('car_lyric_pos_top') },
+                              { value: 'center', label: t('car_lyric_pos_center') },
+                              { value: 'bottom', label: t('car_lyric_pos_bottom') },
+                            ]}
+                            onChange={value => { update({ position: value }) }}
+                          />
+                        </Cell>
                       </View>
 
-                      {/* 字色 */}
-                      <View style={styles.settingRow}>
-                        <Text size={13} color="rgba(255,255,255,0.65)" style={styles.settingLabel}>{t('car_lyric_font_color')}</Text>
-                        <View style={styles.swatchGroup}>
-                          {
-                            CAR_LYRIC_COLORS.map(color => {
-                              const active = setting.color == color
-                              return (
-                                <Pressable
-                                  key={color}
-                                  onPress={() => { update({ color }) }}
-                                  style={{ ...styles.swatchRing, borderColor: active ? 'rgba(255,255,255,0.9)' : 'transparent' }}
-                                  hitSlop={4}
-                                >
-                                  <View style={{ ...styles.swatch, backgroundColor: color }} />
-                                </Pressable>
-                              )
-                            })
-                          }
-                        </View>
+                      {/* 第 3 行：对齐 | 字重 */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_align')}>
+                          <Options
+                            value={setting.align}
+                            options={[
+                              { value: 'center', label: t('car_lyric_align_center') },
+                              { value: 'left', label: t('car_lyric_align_left') },
+                            ]}
+                            onChange={value => { update({ align: value }) }}
+                          />
+                        </Cell>
+                        <Cell label={t('car_lyric_weight')}>
+                          <Options
+                            value={setting.bold ? 'bold' : 'normal'}
+                            options={[
+                              { value: 'normal', label: t('car_lyric_weight_normal') },
+                              { value: 'bold', label: t('car_lyric_weight_bold') },
+                            ]}
+                            onChange={value => { update({ bold: value == 'bold' }) }}
+                          />
+                        </Cell>
                       </View>
 
-                      <Segment
-                        label={t('car_lyric_font')}
-                        value={setting.fontFamily}
-                        options={[
-                          { value: 'default', label: t('car_lyric_font_default') },
-                          { value: 'light', label: t('car_lyric_font_light') },
-                          { value: 'serif', label: t('car_lyric_font_serif') },
-                          { value: 'mono', label: t('car_lyric_font_mono') },
-                        ]}
-                        onChange={value => { update({ fontFamily: value }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_position')}
-                        value={setting.position}
-                        options={[
-                          { value: 'top', label: t('car_lyric_pos_top') },
-                          { value: 'center', label: t('car_lyric_pos_center') },
-                          { value: 'bottom', label: t('car_lyric_pos_bottom') },
-                        ]}
-                        onChange={value => { update({ position: value }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_align')}
-                        value={setting.align}
-                        options={[
-                          { value: 'center', label: t('car_lyric_align_center') },
-                          { value: 'left', label: t('car_lyric_align_left') },
-                        ]}
-                        onChange={value => { update({ align: value }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_weight')}
-                        value={setting.bold ? 'bold' : 'normal'}
-                        options={[
-                          { value: 'normal', label: t('car_lyric_weight_normal') },
-                          { value: 'bold', label: t('car_lyric_weight_bold') },
-                        ]}
-                        onChange={value => { update({ bold: value == 'bold' }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_show_translation')}
-                        value={setting.showTranslation ? 'on' : 'off'}
-                        options={[
-                          { value: 'on', label: t('car_lyric_on') },
-                          { value: 'off', label: t('car_lyric_off') },
-                        ]}
-                        onChange={value => { update({ showTranslation: value == 'on' }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_trans_size')}
-                        value={setting.translationScale > 0.47 ? 'large' : setting.translationScale < 0.38 ? 'small' : 'medium'}
-                        options={[
-                          { value: 'small', label: t('car_lyric_size_small') },
-                          { value: 'medium', label: t('car_lyric_size_medium') },
-                          { value: 'large', label: t('car_lyric_size_large') },
-                        ]}
-                        onChange={value => {
-                          update({ translationScale: value == 'small' ? 0.34 : value == 'large' ? 0.54 : 0.42 })
-                        }}
-                      />
-                      <Segment
-                        label={t('car_lyric_show_title')}
-                        value={setting.showTitle ? 'on' : 'off'}
-                        options={[
-                          { value: 'on', label: t('car_lyric_on') },
-                          { value: 'off', label: t('car_lyric_off') },
-                        ]}
-                        onChange={value => { update({ showTitle: value == 'on' }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_bg')}
-                        value={setting.background}
-                        options={[
-                          { value: 'cover', label: t('car_lyric_bg_cover') },
-                          { value: 'dark', label: t('car_lyric_bg_dark') },
-                        ]}
-                        onChange={value => { update({ background: value }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_blur')}
-                        value={setting.blur}
-                        options={[
-                          { value: 'low', label: t('car_lyric_size_small') },
-                          { value: 'medium', label: t('car_lyric_size_medium') },
-                          { value: 'high', label: t('car_lyric_size_large') },
-                        ]}
-                        onChange={value => { update({ blur: value }) }}
-                      />
-                      <Segment
-                        label={t('car_lyric_animate')}
-                        value={setting.animate ? 'on' : 'off'}
-                        options={[
-                          { value: 'on', label: t('car_lyric_on') },
-                          { value: 'off', label: t('car_lyric_off') },
-                        ]}
-                        onChange={value => { update({ animate: value == 'on' }) }}
-                      />
+                      {/* 第 4 行：显示翻译 | 译文字号 */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_show_translation')}>
+                          <Options
+                            value={setting.showTranslation ? 'on' : 'off'}
+                            options={[
+                              { value: 'on', label: t('car_lyric_on') },
+                              { value: 'off', label: t('car_lyric_off') },
+                            ]}
+                            onChange={value => { update({ showTranslation: value == 'on' }) }}
+                          />
+                        </Cell>
+                        <Cell label={t('car_lyric_trans_size')}>
+                          <Options
+                            value={setting.translationScale > 0.47 ? 'large' : setting.translationScale < 0.38 ? 'small' : 'medium'}
+                            options={[
+                              { value: 'small', label: t('car_lyric_size_small') },
+                              { value: 'medium', label: t('car_lyric_size_medium') },
+                              { value: 'large', label: t('car_lyric_size_large') },
+                            ]}
+                            onChange={value => {
+                              update({ translationScale: value == 'small' ? 0.34 : value == 'large' ? 0.54 : 0.42 })
+                            }}
+                          />
+                        </Cell>
+                      </View>
+
+                      {/* 第 5 行：顶部歌名 | 换句动画 */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_show_title')}>
+                          <Options
+                            value={setting.showTitle ? 'on' : 'off'}
+                            options={[
+                              { value: 'on', label: t('car_lyric_on') },
+                              { value: 'off', label: t('car_lyric_off') },
+                            ]}
+                            onChange={value => { update({ showTitle: value == 'on' }) }}
+                          />
+                        </Cell>
+                        <Cell label={t('car_lyric_animate')}>
+                          <Options
+                            value={setting.animate ? 'on' : 'off'}
+                            options={[
+                              { value: 'on', label: t('car_lyric_on') },
+                              { value: 'off', label: t('car_lyric_off') },
+                            ]}
+                            onChange={value => { update({ animate: value == 'on' }) }}
+                          />
+                        </Cell>
+                      </View>
+
+                      {/* 第 6 行：背景 | 背景模糊 */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_bg')}>
+                          <Options
+                            value={setting.background}
+                            options={[
+                              { value: 'cover', label: t('car_lyric_bg_cover') },
+                              { value: 'dark', label: t('car_lyric_bg_dark') },
+                            ]}
+                            onChange={value => { update({ background: value }) }}
+                          />
+                        </Cell>
+                        <Cell label={t('car_lyric_blur')}>
+                          <Options
+                            value={setting.blur}
+                            options={[
+                              { value: 'low', label: t('car_lyric_size_small') },
+                              { value: 'medium', label: t('car_lyric_size_medium') },
+                              { value: 'high', label: t('car_lyric_size_large') },
+                            ]}
+                            onChange={value => { update({ blur: value }) }}
+                          />
+                        </Cell>
+                      </View>
                     </ScrollView>
 
                     <Text size={11} color="rgba(255,255,255,0.35)" style={styles.panelTip}>{t('car_lyric_panel_tip')}</Text>
@@ -858,56 +908,64 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  settingRow: {
+  /* ---------- 两栏网格设置面板 ---------- */
+  gridRow: {
+    flexDirection: 'row',
+    gap: scaleSizeW(16),
+    marginBottom: scaleSizeH(4),
+  },
+  cell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cellLabel: {
+    marginBottom: scaleSizeH(2),
+  },
+  cellBody: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: scaleSizeH(44),
+    minHeight: scaleSizeH(32),
   },
-  settingLabel: {
-    width: scaleSizeW(76),
-  },
-  settingValue: {
-    width: scaleSizeW(38),
+  cellValue: {
+    minWidth: scaleSizeW(30),
     textAlign: 'right',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   sliderWrap: {
     flex: 1,
-    paddingRight: scaleSizeW(10),
+    paddingRight: scaleSizeW(8),
   },
   swatchGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: scaleSizeW(10),
+    flexWrap: 'wrap',
+    gap: scaleSizeW(6),
   },
   swatchRing: {
-    width: scaleSizeW(38),
-    height: scaleSizeW(38),
-    borderRadius: scaleSizeW(19),
+    width: scaleSizeW(28),
+    height: scaleSizeW(28),
+    borderRadius: scaleSizeW(14),
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   swatch: {
-    width: scaleSizeW(26),
-    height: scaleSizeW(26),
-    borderRadius: scaleSizeW(13),
+    width: scaleSizeW(19),
+    height: scaleSizeW(19),
+    borderRadius: scaleSizeW(9.5),
   },
   segment: {
-    paddingLeft: scaleSizeW(16),
-    paddingRight: scaleSizeW(16),
-    paddingTop: scaleSizeH(7),
-    paddingBottom: scaleSizeH(7),
-    borderRadius: 16,
+    paddingLeft: scaleSizeW(12),
+    paddingRight: scaleSizeW(12),
+    paddingTop: scaleSizeH(5),
+    paddingBottom: scaleSizeH(5),
+    borderRadius: 14,
   },
   panelTip: {
     marginTop: scaleSizeH(6),
-  },
-  // 分段项多选时按钮会变宽，允许横向收缩，别把面板撑爆
-  segmentGroup: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    flexShrink: 1,
-    justifyContent: 'flex-end',
   },
 })

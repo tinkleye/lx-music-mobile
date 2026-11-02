@@ -3,6 +3,7 @@ import {
   Animated,
   FlatList,
   View,
+  type GestureResponderEvent,
   type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -32,8 +33,15 @@ import Text from './Text'
  *   一起可见，不会像原来那样「啪」地一声整块换掉
  * - 动画值直接交给原生驱动，滑动过程中不占用 JS 线程
  * - **轻扫一下就翻页**：车机屏幕宽近 2 米（1920px），系统自带的 pagingEnabled
- *   要拖过半屏才认账，手指得刻意拉很长。这里改成自己判定松手意图：
- *   位移过 8% 屏宽、或者甩得够快，就直接落到下一页
+ *   要拖过半屏才认账，手指得刻意拉很长
+ *
+ * 翻页方向判定（重要，之前在这里栽过两跤）：
+ * - **不用** `onScrollEndDrag` 事件里的 `contentOffset` 判断方向——安卓上这个值
+ *   会滞后/错帧，基准页一错，方向整个反掉（用户看起来就是「左右滑反了」）
+ * - 现在**直接读手指触点坐标**：容器 onTouchStart 记下起点，onTouchEnd 拿终点，
+ *   手指向左滑（终点 x 变小）= 下一页，向右滑 = 上一页。这是物理事实，
+ *   不依赖任何滚动事件，永远不会反
+ * - 当前页码由 onScroll 的 JS 监听实时跟踪（lastXRef），同样不读缓存
  */
 
 export interface CarPagedListType {
@@ -97,11 +105,18 @@ const Page = memo(({ index, width, height, paddingHorizontal, scrollX, children 
   )
 })
 
+/** 轻扫翻页的最短水平距离（px）：比这还短的当误触，交给系统 snap 兜底 */
+const SWIPE_MIN_PX = 24
+/** 轻扫判定：手指接触时长短于这个值、且水平速度够快，就算「甩」 */
+const FLICK_MS = 260
+const FLICK_SPEED = 0.35
+
 function CarPagedListInner<T>({
   data,
   itemHeight,
   numColumns = 1,
   renderItem,
+  keyExtractor,
   onEndReached,
   tipLabel,
   emptyComponent,
@@ -119,12 +134,15 @@ function CarPagedListInner<T>({
   const endReachedLockRef = useRef(false)
   // 横向滚动位置：页面淡入淡出、视差都跟着它走
   const scrollX = useRef(new Animated.Value(0)).current
+  // 实时滚动偏移。onScroll 事件在原生驱动下 JS 也能收到（listener），
+  // 用它跟踪「现在屏幕上到底是哪一页」，不读任何缓存值
+  const lastXRef = useRef(0)
 
   const cols = Math.max(1, Math.trunc(numColumns))
   // 一页的宽度 = 列表宽度。注意 RN 的 width 是包含 padding 的（border-box），
   // 所以页面容器必须撑满整个列表宽，内边距再往里收，格子宽度才和可见区域一致。
-  // 之前把页面宽写成「列表宽 - 左右内边距」，结果 pagingEnabled 按列表宽对齐、
-  // 内容却按内层宽排列，从第二页开始越差越多：左边被切掉、右边空一大块。
+  // 之前把页面宽写成「列表宽 - 左右内边距」，结果对齐按列表宽、内容按内层宽，
+  // 从第二页开始越差越多：左边被切掉、右边空一大块。
   const pageWidth = size.width
   const innerWidth = Math.max(size.width - paddingHorizontal * 2, 0)
   // 布局完成前算出来的行数/列数都是假值，这时候的跳转请求先挂起
@@ -182,6 +200,27 @@ function CarPagedListInner<T>({
     setSize({ width, height })
   }
 
+  // 数据「整体被替换」（切换平台、换搜索词、切歌单源）时，回到第一页并复位动画值。
+  // 之前没做这一步：切完平台 FlatList 还停在旧滚动位置，而且 scrollX 动画值不同步，
+  // 第一页会停留在「半透明 + 偏移」的状态，看起来就是封面显示不全、滑一下才恢复。
+  // 只在「第一项的标识变了」时复位——往下加载更多时第一项不变，不会把人踢回第一页
+  const firstSigRef = useRef<unknown>(null)
+  useEffect(() => {
+    const sig = data.length
+      ? (keyExtractor ? keyExtractor(data[0], 0) : data[0])
+      : null
+    const prev = firstSigRef.current
+    firstSigRef.current = sig
+    if (prev == null || sig == null || prev === sig) return
+    pageRef.current = 0
+    lastXRef.current = 0
+    scrollX.setValue(0)
+    try {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false })
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, keyExtractor, scrollX])
+
   // 一页能放多少条变了（旋转屏幕、改字号等）时，页码会错位，重新定位到当前页
   useEffect(() => {
     if (!isReady || !pageSize || !pageWidth) return
@@ -217,9 +256,8 @@ function CarPagedListInner<T>({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageCount, pageSize])
 
-  const dragRef = useRef({ x: 0, t: 0, page: 0 })
   // 自己发起落位动画的时间点：动画途中系统还会补发一次 momentum 结束事件，
-  // 那时的偏移是「半路」的，用它反推页码会把基准页算错，下一次滑动就会「往回翻」
+  // 那时的偏移是「半路」的，用它反推页码会把页码改错
   const snapAtRef = useRef(0)
 
   const triggerEndReached = useCallback(() => {
@@ -229,59 +267,65 @@ function CarPagedListInner<T>({
     setTimeout(() => { endReachedLockRef.current = false }, 600)
   }, [onEndReached])
 
-  const handleScrollBeginDrag = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+  // onScroll 的 JS 监听：原生驱动照常跑动画，这里只负责把最新偏移记下来
+  const trackScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    lastXRef.current = e.nativeEvent.contentOffset.x
+  }, [])
+
+  /** 翻到指定页（带落位时间戳，用于忽略动画途中系统补发的事件） */
+  const settleTo = useCallback((target: number) => {
+    const clamped = Math.max(0, Math.min(target, pageCount - 1))
     if (!pageWidth) return
-    const x = nativeEvent.contentOffset.x
-    dragRef.current = {
-      x,
-      t: Date.now(),
-      // 基准页直接由「手指按下那一刻的真实偏移」算，不读缓存值：
-      // 缓存值一旦和屏幕上的页错开一页，判定方向就会整个反掉
-      page: Math.round(x / pageWidth),
-    }
+    pageRef.current = clamped
+    snapAtRef.current = Date.now()
+    try {
+      listRef.current?.scrollToOffset({ offset: clamped * pageWidth, animated: true })
+    } catch {}
+    if (clamped >= pageCount - 1) triggerEndReached()
+  }, [pageCount, pageWidth, triggerEndReached])
+
+  // 手指触点：onTouchStart 记起点，onTouchEnd 拿终点，方向看触点坐标，
+  // 不经过任何滚动事件——滚动事件里的偏移在安卓上不可靠，之前方向反了就是它
+  const touchRef = useRef({ x: 0, y: 0, t: 0 })
+
+  const handleTouchStart = (e: GestureResponderEvent) => {
+    const touch = e.nativeEvent.changedTouches[0] ?? e.nativeEvent.touches[0]
+    if (!touch) return
+    touchRef.current = { x: touch.pageX, y: touch.pageY, t: Date.now() }
   }
 
-  // 松手时自己判断「是不是想翻页」，不再等系统拖过半屏才认账
-  const handleScrollEndDrag = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (!pageWidth) return
-    const base = dragRef.current.page
-    const offset = nativeEvent.contentOffset.x
-    // 相对「按下时那一页」的位移。向左滑 → 偏移变大 → 下一页；
-    // 向右滑 → 偏移变小 → 上一页
-    const dx = offset - base * pageWidth
-    const dt = Math.max(Date.now() - dragRef.current.t, 16)
-    // 手指的平均速度（px/ms）：车机上轻轻一甩也能到 1 以上
-    const speed = Math.abs(offset - dragRef.current.x) / dt
-    const vx = (nativeEvent as any).velocity?.x ?? 0
-    let dir = 0
-    // 一：甩得够快就直接翻（iOS 有 velocity，Android 靠自己算的 speed）
-    if (Math.abs(vx) > 0.05) dir = vx > 0 ? 1 : -1
-    else if (speed > 0.35) dir = dx > 0 ? 1 : -1
-    // 二：慢慢拖的，过了 8% 就翻
-    else if (Math.abs(dx) > pageWidth * 0.08) dir = dx > 0 ? 1 : -1
-    const target = Math.max(0, Math.min(base + dir, pageCount - 1))
-    pageRef.current = target
-    snapAtRef.current = Date.now()
-    // 无论翻不翻，都主动落位：这一步会打断系统的惯性滑动，
-    // 所以不会出现「已经落到下一页又被惯性带回半页」的情况
-    try {
-      listRef.current?.scrollToOffset({ offset: target * pageWidth, animated: true })
-    } catch {}
-    if (target >= pageCount - 1) triggerEndReached()
+  const handleTouchEnd = (e: GestureResponderEvent) => {
+    const start = touchRef.current
+    touchRef.current = { x: 0, y: 0, t: 0 }
+    const touch = e.nativeEvent.changedTouches[0]
+    if (!touch || !start.t || !pageWidth) return
+    const dx = touch.pageX - start.x
+    const dy = touch.pageY - start.y
+    // 纵向滚动 / 点按：不管，交给系统自己处理
+    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) <= Math.abs(dy)) return
+    const dt = Math.max(Date.now() - start.t, 16)
+    const isFlick = dt < FLICK_MS && Math.abs(dx) / dt > FLICK_SPEED
+    // 慢慢拖的要拖过 6% 屏宽才算翻页；轻甩不用
+    if (!isFlick && Math.abs(dx) < pageWidth * 0.06) return
+    // 当前页从实时偏移算，不读缓存：缓存一旦和屏幕对不上，方向就乱了
+    const base = Math.max(0, Math.min(Math.round(lastXRef.current / pageWidth), pageCount - 1))
+    // 手指向左滑（终点 x 变小）= 内容左移 = 看右边那页 = 下一页
+    const dir = dx < 0 ? 1 : -1
+    settleTo(base + dir)
+  }
+
+  const handleTouchCancel = () => {
+    touchRef.current = { x: 0, y: 0, t: 0 }
   }
 
   const handleMomentumEnd = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!pageWidth) return
     // 刚落位动画还没走完时系统补发的这次事件一律忽略，只保留自己算出来的页码
-    if (Date.now() - snapAtRef.current < 400) {
-      if (pageRef.current >= pageCount - 1) triggerEndReached()
-      return
-    }
+    if (Date.now() - snapAtRef.current < 400) return
     const raw = nativeEvent.contentOffset.x / pageWidth
-    const nearest = Math.round(raw)
+    const nearest = Math.max(0, Math.min(Math.round(raw), pageCount - 1))
     // 万一被惯性带偏没落在整页上，这里补一下
     if (Math.abs(raw - nearest) * pageWidth > 2) {
-      pageRef.current = nearest
       syncPage(nearest)
       return
     }
@@ -322,7 +366,13 @@ function CarPagedListInner<T>({
   const showEmpty = !data.length && !!emptyComponent
 
   return (
-    <View style={styles.container} onLayout={handleLayout}>
+    <View
+      style={styles.container}
+      onLayout={handleLayout}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
+    >
       {
         size.width > 0 && pageCount
           ? (
@@ -332,7 +382,7 @@ function CarPagedListInner<T>({
                 data={pages}
                 horizontal
                 // 不用 pagingEnabled：它要拖过半屏才认账，宽屏车机上太费劲。
-                // 改成松手时自己判定（见 handleScrollEndDrag），snapToInterval 只做兜底
+                // 翻页由触点坐标判定（见 handleTouchEnd），snapToInterval 只做兜底
                 snapToInterval={pageWidth}
                 // 翻页时不要回弹：一页就是终点，松手直接落位
                 bounces={false}
@@ -343,13 +393,11 @@ function CarPagedListInner<T>({
                 scrollEventThrottle={16}
                 onScroll={Animated.event(
                   [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                  { useNativeDriver: true },
+                  { useNativeDriver: true, listener: trackScroll },
                 )}
                 keyExtractor={(item, index) => `page_${index}`}
                 renderItem={renderPage}
                 getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
-                onScrollBeginDrag={handleScrollBeginDrag}
-                onScrollEndDrag={handleScrollEndDrag}
                 onMomentumScrollEnd={handleMomentumEnd}
                 initialNumToRender={3}
                 maxToRenderPerBatch={3}
