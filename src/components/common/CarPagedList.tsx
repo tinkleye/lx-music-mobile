@@ -217,7 +217,10 @@ function CarPagedListInner<T>({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageCount, pageSize])
 
-  const dragRef = useRef({ x: 0, t: 0 })
+  const dragRef = useRef({ x: 0, t: 0, page: 0 })
+  // 自己发起落位动画的时间点：动画途中系统还会补发一次 momentum 结束事件，
+  // 那时的偏移是「半路」的，用它反推页码会把基准页算错，下一次滑动就会「往回翻」
+  const snapAtRef = useRef(0)
 
   const triggerEndReached = useCallback(() => {
     if (!onEndReached || endReachedLockRef.current) return
@@ -227,15 +230,24 @@ function CarPagedListInner<T>({
   }, [onEndReached])
 
   const handleScrollBeginDrag = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    dragRef.current = { x: nativeEvent.contentOffset.x, t: Date.now() }
+    if (!pageWidth) return
+    const x = nativeEvent.contentOffset.x
+    dragRef.current = {
+      x,
+      t: Date.now(),
+      // 基准页直接由「手指按下那一刻的真实偏移」算，不读缓存值：
+      // 缓存值一旦和屏幕上的页错开一页，判定方向就会整个反掉
+      page: Math.round(x / pageWidth),
+    }
   }
 
   // 松手时自己判断「是不是想翻页」，不再等系统拖过半屏才认账
   const handleScrollEndDrag = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!pageWidth) return
-    const base = pageRef.current
+    const base = dragRef.current.page
     const offset = nativeEvent.contentOffset.x
-    // 相对当前页的位移：过了 8% 屏宽就算翻页（原来要过半屏）
+    // 相对「按下时那一页」的位移。向左滑 → 偏移变大 → 下一页；
+    // 向右滑 → 偏移变小 → 上一页
     const dx = offset - base * pageWidth
     const dt = Math.max(Date.now() - dragRef.current.t, 16)
     // 手指的平均速度（px/ms）：车机上轻轻一甩也能到 1 以上
@@ -249,6 +261,7 @@ function CarPagedListInner<T>({
     else if (Math.abs(dx) > pageWidth * 0.08) dir = dx > 0 ? 1 : -1
     const target = Math.max(0, Math.min(base + dir, pageCount - 1))
     pageRef.current = target
+    snapAtRef.current = Date.now()
     // 无论翻不翻，都主动落位：这一步会打断系统的惯性滑动，
     // 所以不会出现「已经落到下一页又被惯性带回半页」的情况
     try {
@@ -259,6 +272,11 @@ function CarPagedListInner<T>({
 
   const handleMomentumEnd = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!pageWidth) return
+    // 刚落位动画还没走完时系统补发的这次事件一律忽略，只保留自己算出来的页码
+    if (Date.now() - snapAtRef.current < 400) {
+      if (pageRef.current >= pageCount - 1) triggerEndReached()
+      return
+    }
     const raw = nativeEvent.contentOffset.x / pageWidth
     const nearest = Math.round(raw)
     // 万一被惯性带偏没落在整页上，这里补一下
@@ -316,7 +334,6 @@ function CarPagedListInner<T>({
                 // 不用 pagingEnabled：它要拖过半屏才认账，宽屏车机上太费劲。
                 // 改成松手时自己判定（见 handleScrollEndDrag），snapToInterval 只做兜底
                 snapToInterval={pageWidth}
-                disableIntervalMomentum
                 // 翻页时不要回弹：一页就是终点，松手直接落位
                 bounces={false}
                 overScrollMode="never"
