@@ -2,8 +2,6 @@ package cn.toside.music.mobile;
 
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -27,10 +25,23 @@ import java.util.Locale;
  * 3. 保留「上滑临时唤出」的系统行为（IMMERSIVE_STICKY），几秒后自动缩回；
  * 4. 由 JS 调用 {@link #setFullscreenEnabled(boolean)} 可实时开/关（跟随「车机模式」开关）。
  *
- * 横屏锁定不在这里，写在 AndroidManifest.xml 的 android:screenOrientation="sensorLandscape"，
- * 这样「只改一个地方」就能恢复成跟随重力感应。
+ * 【为什么回到"钝"策略（重要）】
  *
- * 【稳定性约定】这里做的都是可选的显示效果，任何一步失败都不应影响 App 运行，
+ * 曾经试过更激进的方案：窗口属性一变就同步补、每 300ms 轮询守护、
+ * 系统栏一冒出来 200ms 内补齐。实测在车机上反而让空调栏"闪现"——
+ * 因为导航库在页面切换动画期间会多次改动窗口标志，我们每次都立刻对抗回去，
+ * 双方拉锯，空调栏就反复收到显示/隐藏指令。
+ *
+ * 第一版（打开即全屏那版）用户实测没有闪现，它的策略是"钝"的：
+ *   - 不做轮询、不做窗口属性监听；
+ *   - 只在三个时机一次性补全：onCreate、onResume、onWindowFocusChanged；
+ *   - 系统栏可见性变化时延时 1 秒再补。
+ * 页面切换完成、焦点恢复的那一刻补全，恰好赶在空调栏弹出动画开始之前，
+ * 所以用户看不到闪。本版完整恢复这个机制，只加上车机模式的动态开关。
+ *
+ * 横屏锁定不在这里，写在 AndroidManifest.xml 的 android:screenOrientation="sensorLandscape"。
+ *
+ * 【稳定性约定】全屏是可选的显示效果，任何一步失败都不应影响 App 运行，
  * 所以每个系统调用都用 try-catch 兜住，出异常就静默跳过。
  */
 public class MainActivity extends NavigationActivity {
@@ -51,58 +62,10 @@ public class MainActivity extends NavigationActivity {
 
   /**
    * 系统栏被唤出后，隔多久重新隐藏（毫秒）。
-   *
-   * 只在 View 层 systemUiVisibility 被外部改动时用到（下拉通知栏、输入法）。
-   * 这个值不能太大：车机看到非全屏状态就会把空调栏推出来，
-   * 等一秒再收回去，用户看到的就是"闪一下"。200ms 足够让系统的滑动手势
-   * 先完成，又不会留下可见的空档。
+   * 调大 = 上滑唤出的系统栏停留更久；调小 = 更"霸道"地一直保持全屏。
+   * 保持第一版的 1000ms —— 这个延时实测不影响车机空调栏的隐藏体验。
    */
-  private static final long REHIDE_DELAY_MS = 200L;
-
-  /**
-   * 【全屏守护】检查窗口全屏状态的间隔（毫秒）。
-   *
-   * 为什么要检查：react-native-navigation 在 setRoot / push 新页面（比如点开播放页）
-   * 时会重新应用目标页面的窗口参数，其中会 clearFlags(FLAG_FULLSCREEN)。
-   * 这个动作只改窗口属性、不改 View 的 systemUiVisibility，
-   * 所以 setOnSystemUiVisibilityChangeListener 收不到通知 —— 全屏就丢了。
-   * 车机判断"要不要隐藏底部空调栏"看的正是 FLAG_FULLSCREEN，于是空调栏会冒出来。
-   */
-  private static final long GUARD_INTERVAL_MS = 300L;
-
-  /** 字段初始化：可能在 onCreate 之前就被回调使用，必须提前存在 */
-  private final Handler guardHandler = new Handler(Looper.getMainLooper());
-
-  /** onCreate 里缓存，避免任何回调路径去 getDecorView() 触发提前创建视图 */
-  private View cachedDecorView;
-
-  /** 防止"补全屏"这个动作本身触发回调、又触发补全屏，形成死循环 */
-  private boolean reapplying = false;
-  /** 连续补齐失败次数：用来退避，避免在拒绝全屏的车机上反复修补导致闪烁 */
-  private int guardMissCount = 0;
-
-  private final Runnable guardRunnable = new Runnable() {
-    @Override
-    public void run() {
-      if (!immersiveEnabled) return;
-      try {
-        if (isImmersiveActive()) {
-          guardMissCount = 0;
-        } else {
-          guardMissCount++;
-          // 正常情况连补几次就能稳住；连补 5 次还不行说明这台机器不让全屏，
-          // 就别再高频重试了，拉长间隔降到 3 秒一次，避免画面闪
-          if (guardMissCount <= 5) applyImmersiveFullscreen();
-        }
-      } catch (Throwable ignored) {
-        // 全屏是附加效果，出任何问题都不能影响 App 运行
-      }
-      try {
-        guardHandler.postDelayed(this, guardMissCount > 5 ? 3000L : GUARD_INTERVAL_MS);
-      } catch (Throwable ignored) {
-      }
-    }
-  };
+  private static final long REHIDE_DELAY_MS = 1000L;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -112,59 +75,114 @@ public class MainActivity extends NavigationActivity {
     installCrashLogger();
 
     try {
-      cachedDecorView = getWindow().getDecorView();
-      cachedDecorView.setOnSystemUiVisibilityChangeListener(visibility -> {
+      final View decorView = getWindow().getDecorView();
+
+      // 兜底：react-native-navigation 在切换页面、应用页面配置时可能会重设系统栏可见性，
+      // 所以监听系统栏变化 —— 一旦状态栏又冒出来，延时一点再把它盖回去。
+      decorView.setOnSystemUiVisibilityChangeListener(visibility -> {
         if (!immersiveEnabled) return;
         try {
-          if (!isImmersiveActive()) {
-            guardHandler.postDelayed(this::applyImmersiveFullscreen, REHIDE_DELAY_MS);
+          if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
+            decorView.postDelayed(this::applyImmersiveFullscreen, REHIDE_DELAY_MS);
           }
         } catch (Throwable ignored) {
         }
       });
-    } catch (Throwable ignored) {
-      // 拿不到 DecorView 就放弃这一层监听，后面的守护轮询仍然有效
-    }
 
-    applyImmersiveFullscreen();
+      applyImmersiveFullscreen();
+    } catch (Throwable ignored) {
+      // 拿不到 DecorView 就放弃监听，onResume / onWindowFocusChanged 仍然会补
+    }
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    currentInstance = this;
+    // 从后台 / 锁屏 / 通知栏返回时补一次
+    if (immersiveEnabled) applyImmersiveFullscreen();
+  }
+
+  @Override
+  protected void onPause() {
+    // 离开界面（被其他应用/弹窗盖住）期间不再做任何修补
+    // （第一版没有这句，是配合开关加的，行为不受影响）
+    super.onPause();
+  }
+
+  @Override
+  protected void onDestroy() {
+    if (currentInstance == this) currentInstance = null;
+    super.onDestroy();
+  }
+
+  @Override
+  public void onWindowFocusChanged(boolean hasFocus) {
+    super.onWindowFocusChanged(hasFocus);
+    // 输入法收起、音量条消失后重新获得焦点时也补一次。
+    // 页面切换完成后焦点恢复也会走到这里 —— 这正是第一版"不闪"的关键时机：
+    // 在此刻一次性补全，赶在空调栏弹出动画开始之前。
+    if (hasFocus && immersiveEnabled) applyImmersiveFullscreen();
   }
 
   /**
-   * 兜底二：窗口属性（flags）变化时检查。
-   *
-   * react-native-navigation 切换页面会 clearFlags(FLAG_FULLSCREEN)，走的是这条路，
-   * 上面的 View 层监听收不到。
-   *
-   * 注意：这个方法可能在 onCreate 之前、DecorView 还没创建时就被系统回调。
-   * 所以这里【绝对不能】碰 getDecorView() —— 那会强制提前创建视图，
-   * 与导航库随后的 setContentView 冲突，表现就是一启动就闪退。
-   * 窗口标志用 addFlags 同步补（不涉及视图，安全）；View 标志交给下一个消息循环补。
+   * 供 JS 调用：开/关沉浸式全屏。
+   * 设置页切换开关时即时生效，不需要重启 App。
    */
-  @Override
-  public void onWindowAttributesChanged(WindowManager.LayoutParams params) {
+  public static void setFullscreenEnabled(boolean enable) {
+    immersiveEnabled = enable;
+    MainActivity activity = currentInstance;
+    if (activity == null) return;
+    activity.runOnUiThread(() -> {
+      try {
+        if (enable) {
+          activity.applyImmersiveFullscreen();
+        } else {
+          activity.exitImmersiveFullscreen();
+        }
+      } catch (Throwable ignored) {
+      }
+    });
+  }
+
+  private void applyImmersiveFullscreen() {
+    if (!immersiveEnabled) return;
+
     try {
-      super.onWindowAttributesChanged(params);
+      Window window = getWindow();
+
+      // 状态栏 / 导航栏区域变透明，内容才能真正延伸到整块屏幕（Android 5.0+）
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.setStatusBarColor(0x00000000);
+        window.setNavigationBarColor(0x00000000);
+      }
+
+      // 【车机兼容】很多车机的空调栏是挂在系统栏上的，但它判断"要不要隐藏"时
+      // 只看窗口级的 FLAG_FULLSCREEN，不认下面的 SYSTEM_UI 标志。
+      // 补上这个标志能显著提高车机上自动隐藏空调栏的成功率，手机上则等同于无副作用。
+      window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+      int uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN  // 内容铺到状态栏底下
+        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION   // 隐藏底部导航键
+        | View.SYSTEM_UI_FLAG_FULLSCREEN        // 隐藏顶部状态栏
+        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY; // 上滑临时唤出后自动缩回
+
+      window.getDecorView().setSystemUiVisibility(uiOptions);
     } catch (Throwable ignored) {
     }
+  }
+
+  /**
+   * 关闭全屏：把系统栏（状态栏 + 导航栏）还原出来。
+   */
+  private void exitImmersiveFullscreen() {
     try {
-      if (!immersiveEnabled || params == null) return;
-      if ((params.flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0) return;
-
-      // 关键：这里【同步】把标志补回去，不要等到下一帧。
-      // 车机的空调栏是看到 FLAG_FULLSCREEN 消失就立刻弹出的，
-      // 哪怕只晚一帧，用户也会看到空调栏"闪一下再缩回去"。
-      // 回调本身发生在窗口属性已应用、但还没绘制的时候，同步补等于没有空档。
       Window window = getWindow();
-      if (window != null) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-
-      // View 层的 systemUiVisibility 也要一起补齐（这部分交给下一个消息循环做，
-      // 避免在窗口属性回调里直接操作视图引发重入问题）
-      if (reapplying) return;
-      reapplying = true;
-      guardHandler.post(() -> {
-        reapplying = false;
-        if (immersiveEnabled) applyImmersiveFullscreen();
-      });
+      window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+      window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
     } catch (Throwable ignored) {
     }
   }
@@ -173,7 +191,6 @@ public class MainActivity extends NavigationActivity {
    * 【排障用】把未捕获异常的堆栈写到 App 私有外部目录，方便定位闪退。
    *
    * 路径：Android/data/cn.toside.music.mobile/files/crash.log
-   * 文件里是崩溃时间 + 完整堆栈；定位不了就删掉，不影响任何功能。
    * 整个逻辑全部 try-catch，写不进去就算了，绝不因为它自己再崩一次。
    */
   private static boolean crashLoggerInstalled = false;
@@ -200,155 +217,6 @@ public class MainActivity extends NavigationActivity {
         }
         if (previous != null) previous.uncaughtException(thread, throwable);
       });
-    } catch (Throwable ignored) {
-    }
-  }
-
-  @Override
-  protected void onResume() {
-    super.onResume();
-    currentInstance = this;
-    try {
-      if (cachedDecorView == null) cachedDecorView = getWindow().getDecorView();
-    } catch (Throwable ignored) {
-    }
-    // 从后台 / 锁屏 / 通知栏返回时补一次
-    if (immersiveEnabled) {
-      applyImmersiveFullscreen();
-      startGuard();
-    }
-  }
-
-  @Override
-  protected void onPause() {
-    stopGuard();
-    super.onPause();
-  }
-
-  @Override
-  protected void onDestroy() {
-    stopGuard();
-    if (currentInstance == this) currentInstance = null;
-    super.onDestroy();
-  }
-
-  @Override
-  public void onWindowFocusChanged(boolean hasFocus) {
-    super.onWindowFocusChanged(hasFocus);
-    // 输入法收起、音量条消失后重新获得焦点时也补一次
-    if (hasFocus && immersiveEnabled) applyImmersiveFullscreen();
-  }
-
-  /**
-   * 供 JS 调用：开/关沉浸式全屏。
-   * 设置页切换开关时即时生效，不需要重启 App。
-   */
-  public static void setFullscreenEnabled(boolean enable) {
-    immersiveEnabled = enable;
-    MainActivity activity = currentInstance;
-    if (activity == null) return;
-    activity.runOnUiThread(() -> {
-      try {
-        if (enable) {
-          activity.applyImmersiveFullscreen();
-          activity.startGuard();
-        } else {
-          activity.stopGuard();
-          activity.exitImmersiveFullscreen();
-        }
-      } catch (Throwable ignored) {
-      }
-    });
-  }
-
-  private void startGuard() {
-    try {
-      guardHandler.removeCallbacks(guardRunnable);
-      guardHandler.postDelayed(guardRunnable, GUARD_INTERVAL_MS);
-    } catch (Throwable ignored) {
-    }
-  }
-
-  private void stopGuard() {
-    try {
-      guardHandler.removeCallbacks(guardRunnable);
-    } catch (Throwable ignored) {
-    }
-  }
-
-  /**
-   * 当前窗口是否处于"目标全屏状态"：窗口标志和 View 标志都要在。
-   * 只要缺一项就认为被外部重置过，需要重新应用。
-   */
-  private boolean isImmersiveActive() {
-    try {
-      Window window = getWindow();
-      if (window == null) return true;
-
-      boolean windowFlagOk = (window.getAttributes().flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0;
-      if (!windowFlagOk) return false;
-
-      View decorView = cachedDecorView;
-      if (decorView == null) return false;
-
-      int visibility = decorView.getSystemUiVisibility();
-      boolean statusBarHidden = (visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0;
-      boolean navBarHidden = (visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0;
-      return statusBarHidden && navBarHidden;
-    } catch (Throwable ignored) {
-      // 读不到状态就当它正常，避免无意义地反复修补
-      return true;
-    }
-  }
-
-  private void applyImmersiveFullscreen() {
-    if (!immersiveEnabled) return;
-
-    try {
-      Window window = getWindow();
-      if (window == null) return;
-
-      // 状态栏 / 导航栏区域变透明，内容才能真正延伸到整块屏幕（Android 5.0+）
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        window.setStatusBarColor(0x00000000);
-        window.setNavigationBarColor(0x00000000);
-      }
-
-      int uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN  // 内容铺到状态栏底下
-        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION   // 隐藏底部导航键
-        | View.SYSTEM_UI_FLAG_FULLSCREEN        // 隐藏顶部状态栏
-        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY; // 上滑临时唤出后自动缩回
-
-      View decorView = cachedDecorView;
-      if (decorView == null) {
-        decorView = window.getDecorView();
-        cachedDecorView = decorView;
-      }
-      if (decorView == null) return;
-      decorView.setSystemUiVisibility(uiOptions);
-
-      // 【车机兼容】很多车机的空调栏是挂在系统栏上的，但它判断"要不要隐藏"时
-      // 只看窗口级的 FLAG_FULLSCREEN，不认上面的 SYSTEM_UI 标志。
-      // 放在 setSystemUiVisibility 之后：某些系统设置 View 标志时会顺带重置窗口标志。
-      window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-    } catch (Throwable ignored) {
-      // 全屏失败不影响 App 正常使用
-    }
-  }
-
-  /**
-   * 关闭全屏：把系统栏（状态栏 + 导航栏）还原出来。
-   */
-  private void exitImmersiveFullscreen() {
-    try {
-      Window window = getWindow();
-      if (window == null) return;
-      window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-      View decorView = cachedDecorView != null ? cachedDecorView : window.getDecorView();
-      if (decorView != null) decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
     } catch (Throwable ignored) {
     }
   }
