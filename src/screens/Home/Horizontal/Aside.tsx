@@ -38,14 +38,12 @@ const styles = createStyle({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerText: {
-    textAlign: 'center',
-    marginLeft: 16,
-  },
   menus: {
     flex: 1,
   },
   list: {
+    // 【改造】车机模式下去掉了顶部 logo，菜单整体上移，这里只留一点点呼吸空间
+    paddingTop: carMode ? 8 : 0,
     // paddingTop: 10,
     paddingBottom: 15,
   },
@@ -77,11 +75,13 @@ const styles = createStyle({
 const Header = () => {
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
+  // 【改造】车机模式下顶部这个 logo 只是个装饰、点不出任何功能，
+  // 还要占掉「安全区 + 上下各 15」的竖向空间，直接整块去掉，菜单整体上移。
+  if (carMode) return null
   return (
     <View style={{ paddingTop: statusBarHeight }}>
       <View style={styles.header}>
         <Icon name="logo" color={theme['c-primary-dark-100-alpha-300']} size={22} />
-        {/* <Text style={styles.headerText} size={16} color={theme['c-primary-dark-100-alpha-300']}>LX Music</Text> */}
       </View>
     </View>
   )
