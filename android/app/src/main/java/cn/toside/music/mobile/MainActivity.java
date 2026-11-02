@@ -63,7 +63,7 @@ public class MainActivity extends NavigationActivity {
    * 所以 setOnSystemUiVisibilityChangeListener 收不到通知 —— 全屏就丢了。
    * 车机判断"要不要隐藏底部空调栏"看的正是 FLAG_FULLSCREEN，于是空调栏会冒出来。
    */
-  private static final long GUARD_INTERVAL_MS = 500L;
+  private static final long GUARD_INTERVAL_MS = 300L;
 
   /** 字段初始化：可能在 onCreate 之前就被回调使用，必须提前存在 */
   private final Handler guardHandler = new Handler(Looper.getMainLooper());
@@ -133,7 +133,7 @@ public class MainActivity extends NavigationActivity {
    * 注意：这个方法可能在 onCreate 之前、DecorView 还没创建时就被系统回调。
    * 所以这里【绝对不能】碰 getDecorView() —— 那会强制提前创建视图，
    * 与导航库随后的 setContentView 冲突，表现就是一启动就闪退。
-   * 只投递一条消息到主线程队列，等窗口就绪后再处理。
+   * 窗口标志用 addFlags 同步补（不涉及视图，安全）；View 标志交给下一个消息循环补。
    */
   @Override
   public void onWindowAttributesChanged(WindowManager.LayoutParams params) {
@@ -142,14 +142,24 @@ public class MainActivity extends NavigationActivity {
     } catch (Throwable ignored) {
     }
     try {
-      if (!immersiveEnabled || reapplying || params == null) return;
-      if ((params.flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) == 0) {
-        reapplying = true;
-        guardHandler.post(() -> {
-          reapplying = false;
-          if (immersiveEnabled) applyImmersiveFullscreen();
-        });
-      }
+      if (!immersiveEnabled || params == null) return;
+      if ((params.flags & WindowManager.LayoutParams.FLAG_FULLSCREEN) != 0) return;
+
+      // 关键：这里【同步】把标志补回去，不要等到下一帧。
+      // 车机的空调栏是看到 FLAG_FULLSCREEN 消失就立刻弹出的，
+      // 哪怕只晚一帧，用户也会看到空调栏"闪一下再缩回去"。
+      // 回调本身发生在窗口属性已应用、但还没绘制的时候，同步补等于没有空档。
+      Window window = getWindow();
+      if (window != null) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+      // View 层的 systemUiVisibility 也要一起补齐（这部分交给下一个消息循环做，
+      // 避免在窗口属性回调里直接操作视图引发重入问题）
+      if (reapplying) return;
+      reapplying = true;
+      guardHandler.post(() -> {
+        reapplying = false;
+        if (immersiveEnabled) applyImmersiveFullscreen();
+      });
     } catch (Throwable ignored) {
     }
   }

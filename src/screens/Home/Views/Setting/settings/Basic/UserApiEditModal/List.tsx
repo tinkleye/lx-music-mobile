@@ -14,6 +14,10 @@ import settingState from '@/store/setting/state'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { setApiSource } from '@/core/apiSource'
 import { getUserApiFallbacks, setUserApiFallbacks } from '@/utils/data'
+import { isCarModeEnabled } from '@/config/carMode'
+
+// 【改造】车机横屏下行高紧张，列表项排版更紧凑
+const carMode = isCarModeEnabled()
 
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
@@ -65,7 +69,7 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
         </Text>
         {
           item.description ? (
-            <Text size={12} color={theme['c-font-label']}>{item.description}</Text>
+            <Text size={12} color={theme['c-font-label']} numberOfLines={carMode ? 1 : undefined}>{item.description}</Text>
           ) : null
         }
         {
@@ -76,40 +80,38 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
             </Text>
           ) : null
         }
-        {
-          // 【改造】主源 / 备用源标记与排序
-          isActive
-            ? <Text size={11} color={theme['c-primary-font']}>{t('user_api_primary_source')}</Text>
-            : (
-                <View style={styles.fallbackRow}>
-                  <CheckBox check={isFallback} label={t('user_api_backup_source')} onChange={handleToggleFallback} size={0.86} />
-                  {
-                    isFallback
-                      ? (
-                          <View style={styles.orderBtns}>
-                            <Text size={11} color={theme['c-font-label']}>{t('user_api_backup_source_order', { index: fallbackIndex + 1 })}</Text>
-                            <TouchableOpacity
-                              style={styles.orderBtn}
-                              disabled={fallbackIndex <= 0}
-                              onPress={() => { onMoveFallback(item.id, -1) }}
-                            >
-                              <Text size={11} color={fallbackIndex <= 0 ? theme['c-350'] : theme['c-primary-font']}>{t('user_api_move_up')}</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles.orderBtn}
-                              disabled={fallbackIndex >= fallbackTotal - 1}
-                              onPress={() => { onMoveFallback(item.id, 1) }}
-                            >
-                              <Text size={11} color={fallbackIndex >= fallbackTotal - 1 ? theme['c-350'] : theme['c-primary-font']}>{t('user_api_move_down')}</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )
-                      : null
-                  }
-                </View>
-              )
-        }
-        <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
+        {/* 【改造】备用源勾选、「主源」标记、「允许更新提示」合并在同一行，省出行高给源列表 */}
+        <View style={styles.checkRow}>
+          {
+            isActive
+              ? <Text size={11} color={theme['c-primary-font']}>{t('user_api_primary_source')}</Text>
+              : <CheckBox check={isFallback} label={t('user_api_backup_source')} onChange={handleToggleFallback} size={0.86} />
+          }
+          {
+            !isActive && isFallback
+              ? (
+                  <View style={styles.orderBtns}>
+                    <Text size={11} color={theme['c-font-label']}>{t('user_api_backup_source_order', { index: fallbackIndex + 1 })}</Text>
+                    <TouchableOpacity
+                      style={styles.orderBtn}
+                      disabled={fallbackIndex <= 0}
+                      onPress={() => { onMoveFallback(item.id, -1) }}
+                    >
+                      <Text size={11} color={fallbackIndex <= 0 ? theme['c-350'] : theme['c-primary-font']}>{t('user_api_move_up')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.orderBtn}
+                      disabled={fallbackIndex >= fallbackTotal - 1}
+                      onPress={() => { onMoveFallback(item.id, 1) }}
+                    >
+                      <Text size={11} color={fallbackIndex >= fallbackTotal - 1 ? theme['c-350'] : theme['c-primary-font']}>{t('user_api_move_down')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )
+              : null
+          }
+          <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
+        </View>
       </View>
       <View style={styles.listItemRight}>
         {
@@ -259,13 +261,15 @@ const styles = createStyle({
   scrollView: {
     paddingHorizontal: 7,
     flexGrow: 0,
+    // 【改造】内容多时要能在弹窗内滚动，而不是把弹窗撑破
+    flexShrink: 1,
   },
   list: {
     paddingBottom: 15,
     flexDirection: 'column',
   },
   listItem: {
-    padding: 10,
+    padding: carMode ? 8 : 10,
     borderRadius: BorderRadius.normal,
     flexDirection: 'row',
     alignItems: 'center',
@@ -274,7 +278,7 @@ const styles = createStyle({
   listItemLeft: {
     paddingRight: 10,
     flex: 1,
-    gap: 2,
+    gap: carMode ? 1 : 2,
   },
   listItemRight: {
     flex: 0,
@@ -294,8 +298,8 @@ const styles = createStyle({
     marginTop: 25,
     marginBottom: 15,
   },
-  // 【改造】备用源勾选与排序
-  fallbackRow: {
+  // 【改造】备用源勾选与排序（与「允许更新提示」并排，会自动换行）
+  checkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',

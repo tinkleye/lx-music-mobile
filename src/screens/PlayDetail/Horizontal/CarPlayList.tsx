@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { FlatList, TouchableOpacity, View } from 'react-native'
+import { Animated, FlatList, PanResponder, TouchableOpacity, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
@@ -62,6 +62,38 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     }
   }, [playInfo.playerListId])
 
+  // 【改造】向左滑动关闭面板：跟手位移 + 松手判定，滑动方向以水平为主时才接管手势，
+  // 保证上下滚动列表不受影响。
+  const translateX = useRef(new Animated.Value(0)).current
+  const panResponder = useRef(PanResponder.create({
+    // 必须用 Capture 阶段判断，否则列表的滚动会先把触摸吃掉
+    onMoveShouldSetPanResponderCapture: (_, g) =>
+      g.dx < -12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
+    onPanResponderMove: (_, g) => {
+      if (g.dx < 0) translateX.setValue(g.dx)
+    },
+    onPanResponderRelease: (_, g) => {
+      bumpTimer()
+      if (g.dx < -70 || g.vx < -0.6) {
+        // 滑够了就顺势收起：先滑出屏幕再真正关闭，避免"啪"地消失
+        Animated.timing(translateX, {
+          toValue: -999,
+          duration: 160,
+          useNativeDriver: false,
+        }).start(() => {
+          // 先卸载面板再复位，避免关闭瞬间看到面板弹回原位
+          onCloseRef.current()
+          translateX.setValue(0)
+        })
+      } else {
+        Animated.spring(translateX, { toValue: 0, bounciness: 0, useNativeDriver: false }).start()
+      }
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(translateX, { toValue: 0, bounciness: 0, useNativeDriver: false }).start()
+    },
+  })).current
+
   const listId = playInfo.playerListId
   const musics = listId ? getListMusicSync(listId) : []
   const currentIndex = playInfo.playerPlayIndex
@@ -100,10 +132,15 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   }
 
   return (
-    <View
+    <Animated.View
+      {...panResponder.panHandlers}
       // 触摸任意位置都重置自动返回计时（返回 false 不拦截子组件手势）
       onStartShouldSetResponder={() => { bumpTimer(); return false }}
-      style={{ ...styles.container, borderRightColor: theme['c-border-background'] }}
+      style={{
+        ...styles.container,
+        borderRightColor: theme['c-border-background'],
+        transform: [{ translateX }],
+      }}
     >
       <View style={{ ...styles.header, borderBottomColor: theme['c-border-background'] }}>
         <Icon name="menu" color={theme['c-primary-font']} size={18} />
@@ -138,7 +175,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
               </View>
             )
       }
-    </View>
+    </Animated.View>
   )
 })
 

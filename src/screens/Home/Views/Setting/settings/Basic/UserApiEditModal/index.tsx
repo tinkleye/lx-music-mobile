@@ -12,6 +12,10 @@ import CheckBoxItem from '../../../components/CheckBoxItem'
 import { checkUserApiUpdates } from '@/core/userApi'
 import { updateSetting } from '@/core/common'
 import { useSettingValue } from '@/store/setting/hook'
+import { isCarModeEnabled } from '@/config/carMode'
+
+// 【改造】车机横屏下行高比较紧张，排版需要更紧凑
+const carMode = isCarModeEnabled()
 
 // interface UrlInputType {
 //   setText: (text: string) => void
@@ -128,24 +132,27 @@ export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
   return (
     visible
       ? (
-          <Dialog ref={dialogRef} bgHide={false}>
+          <Dialog ref={dialogRef} bgHide={false} fullHeight={carMode}>
             <View style={styles.content}>
               {/* <UrlInput ref={inputRef} /> */}
-              <Text size={16} style={styles.title}>{t('user_api_title')}</Text>
-              <List />
-              <View style={styles.options}>
-                <CheckBoxItem
-                  check={autoUpdate}
-                  label={t('user_api_auto_update')}
-                  onChange={handleChangeAutoUpdate}
-                  size={0.86}
-                />
-                <TouchableOpacity onPress={handleCheckAll} disabled={checkingAll} style={styles.checkAllBtn}>
-                  <Text size={12} color={theme['c-primary-font']}>
-                    {checkingAll ? t('user_api_checking') : t('user_api_check_update_all')}
-                  </Text>
-                </TouchableOpacity>
+              {/* 【改造】标题和两个选项合并到同一行，车机横屏下省出一整行高度给源列表 */}
+              <View style={styles.headerRow}>
+                <Text size={carMode ? 15 : 16} style={styles.title} numberOfLines={1}>{t('user_api_title')}</Text>
+                <View style={styles.headerActions}>
+                  <CheckBoxItem
+                    check={autoUpdate}
+                    label={t('user_api_auto_update')}
+                    onChange={handleChangeAutoUpdate}
+                    size={0.86}
+                  />
+                  <TouchableOpacity onPress={handleCheckAll} disabled={checkingAll} style={styles.checkAllBtn}>
+                    <Text size={12} color={theme['c-primary-font']}>
+                      {checkingAll ? t('user_api_checking') : t('user_api_check_update_all')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+              <List />
               <View style={styles.tips}>
                 <Text style={styles.tipsText} size={12}>
                   {t('user_api_readme')}
@@ -153,9 +160,16 @@ export default forwardRef<UserApiEditModalType, {}>((props, ref) => {
                 <TouchableOpacity onPress={openFAQPage}>
                   <Text style={{ ...styles.tipsText, textDecorationLine: 'underline' }} size={12} color={theme['c-primary-font']}>FAQ</Text>
                 </TouchableOpacity>
-                <View>
-                  <Text style={styles.tipsText} size={12}>{t('user_api_note')}</Text>
-                </View>
+                {
+                  // 【改造】车机横屏下行高紧张，这条风险提示省掉（内容偏长，占 2~3 行）
+                  carMode
+                    ? null
+                    : (
+                        <View>
+                          <Text style={styles.tipsText} size={12}>{t('user_api_note')}</Text>
+                        </View>
+                      )
+                }
               </View>
             </View>
             <View style={styles.btns}>
@@ -175,21 +189,28 @@ const styles = createStyle({
     // flexGrow: 1,
     flexShrink: 1,
     paddingHorizontal: 8,
-    paddingTop: 15,
+    paddingTop: carMode ? 10 : 15,
     paddingBottom: 10,
     flexDirection: 'column',
   },
-  title: {
-    marginBottom: 15,
-    textAlign: 'center',
-    // backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  },
-  options: {
+  // 【改造】标题行：左边标题，右边两个开关/按钮，合并成一行
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 7,
-    marginTop: 12,
+    marginBottom: carMode ? 8 : 12,
+    gap: 10,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 6,
+  },
+  title: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
   checkAllBtn: {
     paddingVertical: 6,

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useState } from 'react'
-import { View, AppState } from 'react-native'
+import { View, AppState, Pressable, StyleSheet } from 'react-native'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import StatusBar from '@/components/common/StatusBar'
 import MoreBtn from './MoreBtn'
@@ -92,6 +92,12 @@ export default memo(({ componentId }: { componentId: string }) => {
             </View>
             <View style={styles.carLyric}>
               <Lyric />
+              {
+                // 【改造】播放列表打开时，点右侧空白区域（歌词区）即可收起面板
+                showPlayList
+                  ? <Pressable style={StyleSheet.absoluteFill} onPress={closePlayListPanel} />
+                  : null
+              }
             </View>
           </View>
         </View>
