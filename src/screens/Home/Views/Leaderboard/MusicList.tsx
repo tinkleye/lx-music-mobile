@@ -90,9 +90,9 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     onRefresh={handleRefresh}
     onLoadMore={handleLoadMore}
     checkHomePagerIdle
-    // 【改造】强制单列：原来用 'medium'，在车机超宽屏上会拆成两列，
-    // 第二列最右侧的「⋮」正好贴在屏幕物理边缘，很难点中
-    rowType='single'
+    // 【改造】排行榜在宽屏上是两列（车机屏幕够宽，两列能一次看到更多歌），
+    // 贴边问题由页面右侧留白 + 加大的「⋮」按钮解决，不限制列数
+    rowType='medium'
    />
 })
 
