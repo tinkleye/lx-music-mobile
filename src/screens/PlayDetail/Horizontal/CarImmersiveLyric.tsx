@@ -433,9 +433,12 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     if (needed <= capacity) return base
     return Math.max(Math.floor(base * capacity / needed), 14)
   }
-  // 歌词最多两行、译文最多两行：正常长度的句子原字号换行即可，不缩
+  // 歌词与译文都最多两行：正常长度的句子原字号换行即可，不缩
   const lyricFit = fitFontSize(display.text, lyricSize, 1.2, 2)
   const transFit = fitFontSize(display.translation, transSize, 0.8, 2)
+
+  // 悬浮设置卡宽度：约占屏宽 1/3、封顶 560，保证中间的歌词还看得见
+  const panelWidth = Math.max(Math.min(Math.round(width * 0.34), 560), 420)
 
   return (
     <Animated.View
@@ -554,20 +557,23 @@ export default memo(({ onClose }: { onClose: () => void }) => {
           : null
       }
 
-      {/* ---------- 设置面板 ---------- */}
+      {/* ---------- 设置面板：右侧悬浮小卡片，不压暗全屏，歌词实时可见 ---------- */}
       {
         showSetting
           ? (
-              <>
-                <Animated.View style={{ ...styles.panelScrim, opacity: panelAnim }} pointerEvents="none" />
-                <Animated.View
-                  style={{
-                    ...styles.panel,
-                    opacity: panelAnim,
-                    transform: [{ translateY: panelAnim.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) }],
-                  }}
-                >
-                  <View style={styles.panelInner} onStartShouldSetResponder={() => true}>
+              <Animated.View
+                style={{
+                  ...styles.panel,
+                  width: panelWidth,
+                  top: Math.round(height * 0.04),
+                  maxHeight: height * 0.92,
+                  opacity: panelAnim,
+                  transform: [{ translateX: panelAnim.interpolate({ inputRange: [0, 1], outputRange: [50, 0] }) }],
+                }}
+              >
+                {/* 注意：这里千万不要挂 onStartShouldSetResponder，
+                    安卓上它会抢走触摸手势，里面的滚动区就拖不动了（第 22 版修掉的坑） */}
+                <View style={styles.panelInner}>
                     <View style={styles.panelHeader}>
                       <Text size={15} color="#fff">{t('car_lyric_immersive')}</Text>
                       <Pressable onPress={closePanel} style={styles.panelClose} hitSlop={8}>
@@ -575,12 +581,14 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                       </Pressable>
                     </View>
 
-                    {/* 设置项排成两栏网格，尽量一屏放下；小屏时面板本身还能滚 */}
+                    {/* 设置项排成两栏网格，尽量一屏放下；真放不下时面板内部可滚（手势不再被拦截） */}
                     <ScrollView
-                      style={{ maxHeight: height * 0.6 }}
+                      style={{ maxHeight: height * 0.8 }}
+                      contentContainerStyle={{ paddingBottom: scaleSizeH(4) }}
                       showsVerticalScrollIndicator={false}
                       bounces={false}
                       overScrollMode="never"
+                      nestedScrollEnabled
                     >
                       {/* 第 1 行：字号 | 字色 */}
                       <View style={styles.gridRow}>
@@ -747,8 +755,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
 
                     <Text size={11} color="rgba(255,255,255,0.35)" style={styles.panelTip}>{t('car_lyric_panel_tip')}</Text>
                   </View>
-                </Animated.View>
-              </>
+              </Animated.View>
             )
           : null
       }
@@ -876,33 +883,30 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 3,
   },
-  panelScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
+  /* ---------- 悬浮设置卡（右侧，约 1/3 屏宽，歌词仍可见） ---------- */
   panel: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: scaleSizeW(28),
-    paddingTop: scaleSizeH(12),
-    paddingBottom: scaleSizeH(18),
-    backgroundColor: 'rgba(18,18,21,0.97)',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    right: scaleSizeW(18),
+    paddingVertical: scaleSizeH(8),
+    paddingHorizontal: scaleSizeW(12),
+    backgroundColor: 'rgba(15,15,19,0.93)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
   },
-  // 超宽屏下把设置项收在中间，避免滑块被拉成一米长
   panelInner: {
     width: '100%',
-    maxWidth: 780,
-    alignSelf: 'center',
   },
   panelHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: scaleSizeH(4),
+    marginBottom: scaleSizeH(2),
   },
   panelClose: {
     width: 32,
@@ -912,64 +916,64 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  /* ---------- 两栏网格设置面板 ---------- */
+  /* ---------- 两栏网格设置面板（紧凑档） ---------- */
   gridRow: {
     flexDirection: 'row',
-    gap: scaleSizeW(16),
-    marginBottom: scaleSizeH(4),
+    gap: scaleSizeW(12),
+    marginBottom: scaleSizeH(3),
   },
   cell: {
     flex: 1,
     minWidth: 0,
   },
   cellLabel: {
-    marginBottom: scaleSizeH(2),
+    marginBottom: scaleSizeH(1),
   },
   cellBody: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: scaleSizeH(32),
+    minHeight: scaleSizeH(26),
   },
   cellValue: {
-    minWidth: scaleSizeW(30),
+    minWidth: scaleSizeW(26),
     textAlign: 'right',
   },
   optionRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 5,
   },
   sliderWrap: {
     flex: 1,
-    paddingRight: scaleSizeW(8),
+    paddingRight: scaleSizeW(6),
   },
   swatchGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: scaleSizeW(6),
+    gap: scaleSizeW(5),
   },
   swatchRing: {
-    width: scaleSizeW(28),
-    height: scaleSizeW(28),
-    borderRadius: scaleSizeW(14),
+    width: scaleSizeW(24),
+    height: scaleSizeW(24),
+    borderRadius: scaleSizeW(12),
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   swatch: {
-    width: scaleSizeW(19),
-    height: scaleSizeW(19),
-    borderRadius: scaleSizeW(9.5),
+    width: scaleSizeW(16),
+    height: scaleSizeW(16),
+    borderRadius: scaleSizeW(8),
   },
   segment: {
-    paddingLeft: scaleSizeW(12),
-    paddingRight: scaleSizeW(12),
-    paddingTop: scaleSizeH(5),
-    paddingBottom: scaleSizeH(5),
-    borderRadius: 14,
+    paddingLeft: scaleSizeW(10),
+    paddingRight: scaleSizeW(10),
+    paddingTop: scaleSizeH(4),
+    paddingBottom: scaleSizeH(4),
+    borderRadius: 12,
   },
   panelTip: {
-    marginTop: scaleSizeH(6),
+    marginTop: scaleSizeH(4),
   },
 })
