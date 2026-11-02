@@ -51,8 +51,13 @@ public class MainActivity extends NavigationActivity {
 
   /**
    * 系统栏被唤出后，隔多久重新隐藏（毫秒）。
+   *
+   * 只在 View 层 systemUiVisibility 被外部改动时用到（下拉通知栏、输入法）。
+   * 这个值不能太大：车机看到非全屏状态就会把空调栏推出来，
+   * 等一秒再收回去，用户看到的就是"闪一下"。200ms 足够让系统的滑动手势
+   * 先完成，又不会留下可见的空档。
    */
-  private static final long REHIDE_DELAY_MS = 1000L;
+  private static final long REHIDE_DELAY_MS = 200L;
 
   /**
    * 【全屏守护】检查窗口全屏状态的间隔（毫秒）。

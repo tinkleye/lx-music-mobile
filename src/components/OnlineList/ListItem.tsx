@@ -8,9 +8,14 @@ import { useI18n } from '@/lang'
 import { useTheme } from '@/store/theme/hook'
 import { scaleSizeH } from '@/utils/pixelRatio'
 import { LIST_ITEM_HEIGHT } from '@/config/constant'
+import { isCarModeEnabled } from '@/config/carMode'
 import { createStyle, type RowInfo } from '@/utils/tools'
 
 export const ITEM_HEIGHT = scaleSizeH(LIST_ITEM_HEIGHT)
+
+// 【改造】车机屏幕大、手指会晃，右上角那个「⋮」图标原来只有 12 显得太小，
+// 车机模式下放大到 16，更容易一次点中。
+const MORE_ICON_SIZE = isCarModeEnabled() ? 16 : 12
 
 const useQualityTag = (musicInfo: LX.Music.MusicInfoOnline) => {
   const t = useI18n()
@@ -77,7 +82,7 @@ export default memo(({ item, index, showSource, onPress, onLongPress, onShowMenu
         }
       </TouchableOpacity>
      <TouchableOpacity onPress={handleShowMenu} ref={moreButtonRef} style={styles.moreButton}>
-        <Icon name="dots-vertical" style={{ color: theme['c-350'] }} size={12} />
+        <Icon name="dots-vertical" style={{ color: theme['c-350'] }} size={MORE_ICON_SIZE} />
       </TouchableOpacity>
     </View>
   )
@@ -159,9 +164,13 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   moreButton: {
-    height: '80%',
-    paddingLeft: 16,
-    paddingRight: 16,
+    // 【改造】原来高度只占 80%，上下各让出 10% 的死区；
+    // 车机上手指会晃，直接撑满整行高度，纵向触摸区变大一倍以上。
+    height: '100%',
+    minWidth: 44,
+    paddingLeft: 12,
+    paddingRight: 14,
+    alignItems: 'center',
     // paddingTop: 10,
     // paddingBottom: 10,
     // backgroundColor: 'rgba(0,0,0,0.2)',

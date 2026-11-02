@@ -532,12 +532,18 @@ export interface RowInfo {
   rowWidth: `${number}%`
 }
 
-export type RowInfoType = 'full' | 'medium'
+export type RowInfoType = 'full' | 'medium' | 'single'
 
 export const getRowInfo = (type: RowInfoType = 'full'): RowInfo => {
   const win = windowSizeTools.getSize()
   let isMultiRow = isHorizontalMode(win.width, win.height)
   if (type == 'medium' && win.width / win.height < 1.8) isMultiRow = false
+  // 【改造】'single' 强制单列。
+  //
+  // 排行榜这类「序号 + 歌名 + 歌手」的列表，在车机超宽屏（如 1920x720）上
+  // 按比例会被拆成两列：每列信息被压得很窄，第二列最右侧的「⋮」按钮
+  // 又正好落在屏幕物理边缘，手指点不准。单列铺满反而更好读、更好点。
+  if (type == 'single') isMultiRow = false
   // console.log('getRowInfo')
   return {
     rowNum: isMultiRow ? 2 : undefined,

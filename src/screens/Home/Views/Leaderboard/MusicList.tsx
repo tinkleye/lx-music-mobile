@@ -90,7 +90,9 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     onRefresh={handleRefresh}
     onLoadMore={handleLoadMore}
     checkHomePagerIdle
-    rowType='medium'
+    // 【改造】强制单列：原来用 'medium'，在车机超宽屏上会拆成两列，
+    // 第二列最右侧的「⋮」正好贴在屏幕物理边缘，很难点中
+    rowType='single'
    />
 })
 
