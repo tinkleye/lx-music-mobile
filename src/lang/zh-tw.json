@@ -559,7 +559,7 @@
   "car_lyric_bg": "背景",
   "car_lyric_bg_cover": "封面模糊",
   "car_lyric_bg_dark": "純黑",
-  "car_lyric_hint": "雙擊返回 · 長按設定",
+  "car_lyric_hint": "單擊顯示控制 · 雙擊返回 · 長按設定",
   "car_lyric_no_lyric": "暫無歌詞",
   "car_lyric_panel_tip": "拖動即時生效，雙擊空白處返回播放介面"
 }

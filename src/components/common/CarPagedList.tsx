@@ -31,6 +31,9 @@ import Text from './Text'
  * - 页面内容跟随滑动做「交叉淡入淡出 + 轻微视差」，滑到一半时新旧两页
  *   一起可见，不会像原来那样「啪」地一声整块换掉
  * - 动画值直接交给原生驱动，滑动过程中不占用 JS 线程
+ * - **轻扫一下就翻页**：车机屏幕宽近 2 米（1920px），系统自带的 pagingEnabled
+ *   要拖过半屏才认账，手指得刻意拉很长。这里改成自己判定松手意图：
+ *   位移过 8% 屏宽、或者甩得够快，就直接落到下一页
  */
 
 export interface CarPagedListType {
@@ -118,6 +121,11 @@ function CarPagedListInner<T>({
   const scrollX = useRef(new Animated.Value(0)).current
 
   const cols = Math.max(1, Math.trunc(numColumns))
+  // 一页的宽度 = 列表宽度。注意 RN 的 width 是包含 padding 的（border-box），
+  // 所以页面容器必须撑满整个列表宽，内边距再往里收，格子宽度才和可见区域一致。
+  // 之前把页面宽写成「列表宽 - 左右内边距」，结果 pagingEnabled 按列表宽对齐、
+  // 内容却按内层宽排列，从第二页开始越差越多：左边被切掉、右边空一大块。
+  const pageWidth = size.width
   const innerWidth = Math.max(size.width - paddingHorizontal * 2, 0)
   // 布局完成前算出来的行数/列数都是假值，这时候的跳转请求先挂起
   const isReady = size.width > 0 && size.height > 0
@@ -141,12 +149,12 @@ function CarPagedListInner<T>({
 
   const syncPage = useCallback((next: number, animated = true) => {
     const target = Math.max(0, Math.min(next, pageCount - 1))
-    if (!innerWidth) return
+    if (!pageWidth) return
     pageRef.current = target
     try {
-      listRef.current?.scrollToOffset({ offset: target * innerWidth, animated })
+      listRef.current?.scrollToOffset({ offset: target * pageWidth, animated })
     } catch {}
-  }, [innerWidth, pageCount])
+  }, [pageWidth, pageCount])
 
   useImperativeHandle(ref, () => ({
     scrollToIndex(index, animated = true) {
@@ -176,7 +184,7 @@ function CarPagedListInner<T>({
 
   // 一页能放多少条变了（旋转屏幕、改字号等）时，页码会错位，重新定位到当前页
   useEffect(() => {
-    if (!isReady || !pageSize || !innerWidth) return
+    if (!isReady || !pageSize || !pageWidth) return
     // 有挂起的跳转请求（布局前就要跳到某首歌）优先处理
     if (pendingIndexRef.current != null) {
       const target = pendingIndexRef.current
@@ -189,7 +197,7 @@ function CarPagedListInner<T>({
     lastPageSizeRef.current = pageSize
     syncPage(Math.min(pageRef.current, Math.max(pageCount - 1, 0)), false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, pageSize, innerWidth, pageCount])
+  }, [isReady, pageSize, pageWidth, pageCount])
 
   // 数据变少（切换列表）时把页码拉回来
   useEffect(() => {
@@ -209,22 +217,66 @@ function CarPagedListInner<T>({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageCount, pageSize])
 
+  const dragRef = useRef({ x: 0, t: 0 })
+
+  const triggerEndReached = useCallback(() => {
+    if (!onEndReached || endReachedLockRef.current) return
+    endReachedLockRef.current = true
+    onEndReached()
+    setTimeout(() => { endReachedLockRef.current = false }, 600)
+  }, [onEndReached])
+
+  const handleScrollBeginDrag = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    dragRef.current = { x: nativeEvent.contentOffset.x, t: Date.now() }
+  }
+
+  // 松手时自己判断「是不是想翻页」，不再等系统拖过半屏才认账
+  const handleScrollEndDrag = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!pageWidth) return
+    const base = pageRef.current
+    const offset = nativeEvent.contentOffset.x
+    // 相对当前页的位移：过了 8% 屏宽就算翻页（原来要过半屏）
+    const dx = offset - base * pageWidth
+    const dt = Math.max(Date.now() - dragRef.current.t, 16)
+    // 手指的平均速度（px/ms）：车机上轻轻一甩也能到 1 以上
+    const speed = Math.abs(offset - dragRef.current.x) / dt
+    const vx = (nativeEvent as any).velocity?.x ?? 0
+    let dir = 0
+    // 一：甩得够快就直接翻（iOS 有 velocity，Android 靠自己算的 speed）
+    if (Math.abs(vx) > 0.05) dir = vx > 0 ? 1 : -1
+    else if (speed > 0.35) dir = dx > 0 ? 1 : -1
+    // 二：慢慢拖的，过了 8% 就翻
+    else if (Math.abs(dx) > pageWidth * 0.08) dir = dx > 0 ? 1 : -1
+    const target = Math.max(0, Math.min(base + dir, pageCount - 1))
+    pageRef.current = target
+    // 无论翻不翻，都主动落位：这一步会打断系统的惯性滑动，
+    // 所以不会出现「已经落到下一页又被惯性带回半页」的情况
+    try {
+      listRef.current?.scrollToOffset({ offset: target * pageWidth, animated: true })
+    } catch {}
+    if (target >= pageCount - 1) triggerEndReached()
+  }
+
   const handleMomentumEnd = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (!innerWidth) return
-    const next = Math.round(nativeEvent.contentOffset.x / innerWidth)
-    pageRef.current = next
-    // 翻到最后一页 → 该加载下一页数据了
-    if (next >= pageCount - 1 && !endReachedLockRef.current) {
-      endReachedLockRef.current = true
-      onEndReached?.()
-      setTimeout(() => { endReachedLockRef.current = false }, 600)
+    if (!pageWidth) return
+    const raw = nativeEvent.contentOffset.x / pageWidth
+    const nearest = Math.round(raw)
+    // 万一被惯性带偏没落在整页上，这里补一下
+    if (Math.abs(raw - nearest) * pageWidth > 2) {
+      pageRef.current = nearest
+      syncPage(nearest)
+      return
     }
+    pageRef.current = nearest
+    // 翻到最后一页 → 该加载下一页数据了
+    if (nearest >= pageCount - 1) triggerEndReached()
   }
 
   const renderPage = ({ item: pageData, index: pageIndex }: { item: (T | null)[], index: number }) => (
     <Page
       index={pageIndex}
-      width={innerWidth}
+      // 页面容器 = 列表宽度（含内边距），这样系统按「一屏」对齐时不会错位
+      width={pageWidth}
       height={size.height}
       paddingHorizontal={paddingHorizontal}
       scrollX={scrollX}
@@ -261,7 +313,10 @@ function CarPagedListInner<T>({
                 style={{ width: size.width, height: size.height }}
                 data={pages}
                 horizontal
-                pagingEnabled
+                // 不用 pagingEnabled：它要拖过半屏才认账，宽屏车机上太费劲。
+                // 改成松手时自己判定（见 handleScrollEndDrag），snapToInterval 只做兜底
+                snapToInterval={pageWidth}
+                disableIntervalMomentum
                 // 翻页时不要回弹：一页就是终点，松手直接落位
                 bounces={false}
                 overScrollMode="never"
@@ -275,7 +330,9 @@ function CarPagedListInner<T>({
                 )}
                 keyExtractor={(item, index) => `page_${index}`}
                 renderItem={renderPage}
-                getItemLayout={(_, index) => ({ length: innerWidth, offset: innerWidth * index, index })}
+                getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
+                onScrollBeginDrag={handleScrollBeginDrag}
+                onScrollEndDrag={handleScrollEndDrag}
                 onMomentumScrollEnd={handleMomentumEnd}
                 initialNumToRender={3}
                 maxToRenderPerBatch={3}

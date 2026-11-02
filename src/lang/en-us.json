@@ -559,7 +559,7 @@
   "car_lyric_bg": "Background",
   "car_lyric_bg_cover": "Blurred cover",
   "car_lyric_bg_dark": "Solid dark",
-  "car_lyric_hint": "Double tap to exit · long press to adjust",
+  "car_lyric_hint": "Tap: controls · Double tap: exit · Hold: adjust",
   "car_lyric_no_lyric": "No lyrics",
   "car_lyric_panel_tip": "Changes apply instantly. Double tap the blank area to go back."
 }

@@ -131,7 +131,17 @@ export const importUserApi = async(script: string, sourceUrl?: string): Promise<
  */
 export const updateUserApi = async(id: string, script: string, sourceUrl?: string): Promise<LX.UserApi.UserApiInfo> => {
   const info = await updateUserApiScriptFromStore(id, script, sourceUrl)
-  action.setUserApiList([...state.list])
+  // 【改造】存储层是「用新对象替换数组里的旧对象」，而 state.list 里还抓着旧对象
+  // （两边只是元素相同、数组不同），所以这里必须把新对象塞回 state.list，
+  // 否则列表界面显示的版本号、名称永远停在导入时的旧值——即使脚本已经更新成功。
+  const index = state.list.findIndex(api => api.id == id)
+  if (index > -1) {
+    const list = [...state.list]
+    list.splice(index, 1, info)
+    action.setUserApiList(list)
+  } else {
+    action.setUserApiList([...state.list])
+  }
 
   // 如果当前正在用这个源，重新加载让新脚本立即生效
   if (settingState.setting['common.apiSource'] == id) {

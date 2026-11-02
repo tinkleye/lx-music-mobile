@@ -14,7 +14,8 @@ import Text from '@/components/common/Text'
 import Slider from '@/components/common/Slider'
 import { Icon } from '@/components/common/Icon'
 import { useLrcPlay, useLrcSet } from '@/plugins/lyric'
-import { usePlayerMusicInfo, useProgress } from '@/store/player/hook'
+import { usePlayerMusicInfo, useProgress, useIsPlay } from '@/store/player/hook'
+import { playPrev, playNext, togglePlay } from '@/core/player/player'
 import { useI18n } from '@/lang'
 import {
   CAR_LYRIC_COLORS,
@@ -36,6 +37,7 @@ import { formatPlayTime2 } from '@/utils/common'
  * 整块屏幕只留「正在唱的这句」，字号可以拉到很大，停车时看着很舒服。
  *
  * 交互（和常见音乐 App 的沉浸歌词一致）：
+ * - 单击空白处：显示 / 隐藏底部控制条（时间、进度、上一首、播放暂停、下一首），5 秒无操作自动收起
  * - 双击空白处：返回原播放界面
  * - 长按空白处：弹出设置面板（字号 / 字色 / 对齐 / 字重 / 翻译 / 背景），拖动即时生效
  * - 面板打开时点一下：先收起面板
@@ -45,24 +47,39 @@ import { formatPlayTime2 } from '@/utils/common'
 const BAR_HEIGHT = 5
 const THUMB_SIZE = 13
 const TOUCH_HEIGHT = scaleSizeH(40)
+const PLAY_BTN_SIZE = Math.round(scaleSizeH(44))
+/** 控制条无操作后自动收起的时间 */
+export const CONTROLS_HIDE_DELAY = 5000
 
 /**
- * 底部进度条 + 时间。
+ * 底部控制条：时间 + 可拖动进度 + 上一首 / 播放暂停 / 下一首。
  *
- * 拆成独立组件的原因有两个：
+ * 拆成独立组件的原因有三个：
  * 1. 播放进度每几百毫秒变一次，放在主组件里会把大号歌词一起重渲染；
- * 2. 拖动进度需要自己的手势状态，独立出来后不影响外面的双击/长按判定。
+ * 2. 拖动进度需要自己的手势状态，独立出来后不影响外面的单击/双击/长按判定；
+ * 3. 默认是隐藏的（车机上只看歌词最清爽），单击才浮出来。
  */
-const ImmersiveProgress = memo(({ hintVisible, hintLabel }: { hintVisible: boolean, hintLabel: string }) => {
+const ImmersiveBar = memo(({ visible, onInteract }: { visible: boolean, onInteract: () => void }) => {
   const { progress, maxPlayTime, nowPlayTimeStr, maxPlayTimeStr } = useProgress()
+  const isPlay = useIsPlay()
   const [dragging, setDragging] = useState(false)
   const [dragProgress, setDragProgress] = useState(0)
   const [width, setWidth] = useState(0)
   const durationRef = useRef(maxPlayTime)
+  const anim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
     durationRef.current = maxPlayTime
   }, [maxPlayTime])
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: visible ? 1 : 0,
+      duration: visible ? 200 : 240,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start()
+  }, [anim, visible])
 
   const onSetProgress = useCallback((p: number) => {
     global.app_event.setProgress(p * durationRef.current)
@@ -89,13 +106,19 @@ const ImmersiveProgress = memo(({ hintVisible, hintLabel }: { hintVisible: boole
   const nowLabel = dragging ? formatPlayTime2(dragProgress * maxPlayTime) : nowPlayTimeStr
 
   return (
-    <View style={styles.bottomBar} pointerEvents="box-none">
+    <Animated.View
+      style={{
+        ...styles.bottomBar,
+        opacity: anim,
+        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [scaleSizeH(16), 0] }) }],
+      }}
+      // 隐藏时不吃触摸，单击 / 双击 / 长按都能落到下面的歌词层
+      pointerEvents={visible ? 'auto' : 'none'}
+    >
       <View style={styles.timeRow} pointerEvents="none">
-        <Text size={12} color="rgba(255,255,255,0.62)" style={styles.timeText}>{nowLabel}</Text>
-        <View style={styles.hintSlot}>
-          <Text size={11} color={`rgba(255,255,255,${hintVisible ? 0.32 : 0})`}>{hintLabel}</Text>
-        </View>
-        <Text size={12} color="rgba(255,255,255,0.62)" style={{ ...styles.timeText, textAlign: 'right' }}>{maxPlayTimeStr}</Text>
+        <Text size={12} color="rgba(255,255,255,0.66)" style={styles.timeText}>{nowLabel}</Text>
+        <View style={styles.timeFill} />
+        <Text size={12} color="rgba(255,255,255,0.66)" style={{ ...styles.timeText, textAlign: 'right' }}>{maxPlayTimeStr}</Text>
       </View>
       <View
         style={styles.trackTouch}
@@ -116,7 +139,31 @@ const ImmersiveProgress = memo(({ hintVisible, hintLabel }: { hintVisible: boole
           pointerEvents="none"
         />
       </View>
-    </View>
+      {/* 上一首 / 播放暂停 / 下一首：车机上按钮要够大，别再让人找 */}
+      <View style={styles.ctrlRow}>
+        <Pressable
+          style={styles.sideBtn}
+          onPress={() => { onInteract(); void playPrev() }}
+          android_disableSound
+        >
+          <Icon name="prevMusic" size={24} color="rgba(255,255,255,0.88)" />
+        </Pressable>
+        <Pressable
+          style={styles.playBtn}
+          onPress={() => { onInteract(); togglePlay() }}
+          android_disableSound
+        >
+          <Icon name={isPlay ? 'pause' : 'play'} size={24} color="#121214" />
+        </Pressable>
+        <Pressable
+          style={styles.sideBtn}
+          onPress={() => { onInteract(); void playNext() }}
+          android_disableSound
+        >
+          <Icon name="nextMusic" size={24} color="rgba(255,255,255,0.88)" />
+        </Pressable>
+      </View>
+    </Animated.View>
   )
 })
 
@@ -161,6 +208,8 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   const [setting, setSetting] = useState<CarLyricSetting>(getCarLyricSetting())
   const [showSetting, setShowSetting] = useState(false)
   const [showHint, setShowHint] = useState(true)
+  // 底部控制条默认隐藏，单击才浮出来，5 秒没操作自动收起
+  const [showControls, setShowControls] = useState(false)
   const [display, setDisplay] = useState(() => ({
     text: lines[line]?.text ?? '',
     translation: lines[line]?.extendedLyrics?.[0] ?? '',
@@ -172,6 +221,9 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   const panelAnim = useRef(new Animated.Value(0)).current
   const lastTapRef = useRef(0)
   const hintTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const controlsTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // 单击后要等一下，确认不是双击的第二下，再去显示控制条
+  const tapTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isFirstLineRef = useRef(true)
 
   const current = lines[line]
@@ -223,6 +275,8 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     restartHint()
     return () => {
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
     }
   }, [restartHint])
 
@@ -234,10 +288,27 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     }).start(() => { onClose() })
   }, [enterOpacity, onClose])
 
+  // 显示控制条并重新计时：点按钮也算「有操作」，5 秒后再收起
+  const showControlsFor = useCallback(() => {
+    setShowControls(true)
+    setShowHint(false)
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    controlsTimerRef.current = setTimeout(() => { setShowControls(false) }, CONTROLS_HIDE_DELAY)
+  }, [])
+
+  const hideControls = useCallback(() => {
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    controlsTimerRef.current = null
+    setShowControls(false)
+  }, [])
+
   const openPanel = useCallback(() => {
     setShowSetting(true)
     setShowHint(false)
+    setShowControls(false)
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current)
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
     Animated.timing(panelAnim, {
       toValue: 1,
       duration: 220,
@@ -260,14 +331,27 @@ export default memo(({ onClose }: { onClose: () => void }) => {
       return
     }
     const now = Date.now()
-    if (now - lastTapRef.current < 320) {
+    if (now - lastTapRef.current < 300) {
+      // 双击：退出沉浸模式
       lastTapRef.current = 0
+      if (tapTimerRef.current) {
+        clearTimeout(tapTimerRef.current)
+        tapTimerRef.current = null
+      }
       handleClose()
       return
     }
     lastTapRef.current = now
-    restartHint()
-  }, [closePanel, handleClose, restartHint, showSetting])
+    // 单击：等 240ms 确认没有第二下，再切换控制条
+    if (tapTimerRef.current) clearTimeout(tapTimerRef.current)
+    tapTimerRef.current = setTimeout(() => {
+      tapTimerRef.current = null
+      // 这里不要清 lastTapRef：双击的第二下可能刚好落在 240~300ms 之间，
+      // 清了就认不出双击，会退化成「又单击一次」
+      if (showControls) hideControls()
+      else showControlsFor()
+    }, 240)
+  }, [closePanel, handleClose, hideControls, showControls, showControlsFor, showSetting])
 
   const update = useCallback((patch: Partial<CarLyricSetting>) => {
     setSetting({ ...saveCarLyricSetting(patch) })
@@ -377,8 +461,19 @@ export default memo(({ onClose }: { onClose: () => void }) => {
         </View>
       </Pressable>
 
-      {/* ---------- 底部：时间 + 可拖动进度条 ---------- */}
-      <ImmersiveProgress hintVisible={showHint && !showSetting} hintLabel={t('car_lyric_hint')} />
+      {/* ---------- 底部：单击才浮出的控制条（时间 / 进度 / 上一首 / 播放 / 下一首） ---------- */}
+      <ImmersiveBar visible={showControls && !showSetting} onInteract={showControlsFor} />
+
+      {/* 刚进入时的操作提示，5 秒自动消失 */}
+      {
+        showHint && !showControls && !showSetting
+          ? (
+              <View style={styles.hintBar} pointerEvents="none">
+                <Text size={11} color="rgba(255,255,255,0.3)">{t('car_lyric_hint')}</Text>
+              </View>
+            )
+          : null
+      }
 
       {/* ---------- 设置面板 ---------- */}
       {
@@ -545,8 +640,35 @@ const styles = StyleSheet.create({
   timeText: {
     minWidth: scaleSizeW(52),
   },
-  hintSlot: {
+  timeFill: {
     flex: 1,
+  },
+  ctrlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: scaleSizeW(46),
+    paddingTop: scaleSizeH(2),
+  },
+  sideBtn: {
+    width: PLAY_BTN_SIZE,
+    height: PLAY_BTN_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playBtn: {
+    width: PLAY_BTN_SIZE + scaleSizeH(8),
+    height: PLAY_BTN_SIZE + scaleSizeH(8),
+    borderRadius: (PLAY_BTN_SIZE + scaleSizeH(8)) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  hintBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: scaleSizeH(26),
     alignItems: 'center',
   },
   trackTouch: {
