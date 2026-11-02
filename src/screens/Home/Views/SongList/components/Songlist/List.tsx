@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, forwardRef, useImperativeHandle } from 'react'
-import { FlatList, View, RefreshControl, type FlatListProps } from 'react-native'
+import { FlatList, View, RefreshControl, TouchableOpacity, type FlatListProps } from 'react-native'
 
 import ListItem from './ListItem'
 // import { navigations } from '@/navigation'
@@ -7,15 +7,24 @@ import { type ListInfoItem } from '@/store/songlist/state'
 import { useLayout } from '@/utils/hooks'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
-import { scaleSizeW } from '@/utils/pixelRatio'
+import { scaleSizeW, scaleSizeH, setSpText } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
+import Image from '@/components/common/Image'
+import CarPagedList, { type CarPagedListType } from '@/components/common/CarPagedList'
+import { isCarModeEnabled } from '@/config/carMode'
+import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 
 type FlatListType = FlatListProps<ListInfoItem>
 
 // const MAX_WIDTH = scaleSizeW(110)
 const MIN_WIDTH = scaleSizeW(110)
 const GAP = scaleSizeW(20)
+
+// 【改造】车机模式：歌单封面改成「一屏两行、左右翻页」
+const carMode = isCarModeEnabled()
+/** 车机模式下一屏显示几行封面 */
+const CAR_ROWS = 2
 
 export interface ListProps {
   onRefresh: () => void
@@ -31,11 +40,13 @@ export interface ListType {
 
 export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenDetail }, ref) => {
   const flatListRef = useRef<FlatList>(null)
+  const pagedRef = useRef<CarPagedListType>(null)
   const [currentList, setList] = useState<ListInfoItem[]>([])
   const [showSource, setShowSource] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
-  const { onLayout, width } = useLayout()
+  const { onLayout, width, height } = useLayout()
   const theme = useTheme()
+  const t = useI18n()
   // console.log('render songlist')
 
   useImperativeHandle(ref, () => ({
@@ -122,7 +133,41 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
       width: (width - GAP) / num,
     }
   }, [width])
-  // console.log(rowNum)
+
+  /**
+   * 【车机改造】一屏两行的排版计算。
+   *
+   * 原来是「竖向滚动 + 按屏宽算列数」，行高由内容决定，
+   * 结果第二行封面经常被屏幕底边切掉（用户反馈「两行显示不全」）。
+   * 现在反过来算：先按「一屏正好两行」定死行高，由行高反推封面尺寸，
+   * 再由屏宽决定放几列。这样两行封面 + 两行标题都保证落在屏幕内。
+   */
+  const carLayout = useMemo(() => {
+    if (!carMode || !width || !height) return null
+    const gap = scaleSizeW(12)
+    const cellHeight = height / CAR_ROWS
+    const lineHeight = Math.round(setSpText(12) * 1.35)
+    const titleHeight = lineHeight * 2 + scaleSizeH(6)
+    // 纵向留给封面的最大高度（扣掉两行标题和间距）
+    const coverMax = Math.max(cellHeight - titleHeight - gap, scaleSizeW(40))
+    // 横向能放几列，封面尽量接近正方形
+    let cols = Math.floor(width / (coverMax + gap))
+    cols = Math.max(2, Math.min(cols, 8))
+    const cellWidth = width / cols
+    const cover = Math.min(cellWidth - gap, coverMax)
+    return { gap, cellHeight, lineHeight, titleHeight, cols, cellWidth, cover }
+  }, [width, height])
+
+  const carTip = useMemo(() => {
+    switch (status) {
+      case 'loading': return t('list_loading')
+      case 'end': return t('list_end')
+      case 'error': return t('list_error')
+      default: return null
+    }
+  }, [status, t])
+
+  // 非车机模式的竖向列表数据（末尾补空位，让最后一行的封面按列对齐）
   const list = useMemo(() => {
     const list = [...currentList]
     let whiteItemNum = (list.length % rowInfo.num)
@@ -141,7 +186,61 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
     }
     return list
   }, [currentList, rowInfo])
-  // console.log(listInfo.list.map((item) => item.id))
+
+  // 【车机改造】两行封面 + 左右翻页
+  if (carMode) {
+    return (
+      <View style={styles.container} onLayout={onLayout}>
+        {
+          carLayout && width > 0
+            ? (
+                <CarPagedList
+                  ref={pagedRef}
+                  data={currentList}
+                  itemHeight={carLayout.cellHeight}
+                  numColumns={carLayout.cols}
+                  keyExtractor={item => item.id}
+                  onEndReached={handleLoadMore}
+                  tipLabel={currentList.length ? carTip : null}
+                  emptyComponent={<Text size={13} color={theme['c-font-label']}>{t('car_paged_list_empty')}</Text>}
+                  renderItem={(item, index) => (
+                    <View style={{ width: carLayout.cellWidth, height: carLayout.cellHeight }}>
+                      <TouchableOpacity
+                        activeOpacity={0.6}
+                        onPress={() => { onOpenDetail(item, index) }}
+                        style={{ width: carLayout.cover }}
+                      >
+                        <Image
+                          url={item.img}
+                          nativeID={`${NAV_SHEAR_NATIVE_IDS.songlistDetail_pic}_from_${item.id}`}
+                          style={{ width: carLayout.cover, height: carLayout.cover, borderRadius: 8, backgroundColor: theme['c-content-background'] }}
+                        />
+                        { showSource ? <Text style={styles.sourceLabel} size={9} color="#fff">{item.source}</Text> : null }
+                      </TouchableOpacity>
+                      <TouchableOpacity activeOpacity={0.6} onPress={() => { onOpenDetail(item, index) }}>
+                        <Text
+                          style={{
+                            width: carLayout.cover,
+                            height: carLayout.titleHeight - scaleSizeH(6),
+                            lineHeight: carLayout.lineHeight,
+                            marginTop: scaleSizeH(6) / 2,
+                          }}
+                          size={12}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >{item.name}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                />
+              )
+            : null
+        }
+      </View>
+    )
+  }
+
+  // console.log(rowNum)
 
   return (
     <View style={styles.container} onLayout={onLayout}>
@@ -213,5 +312,17 @@ const styles = createStyle({
   footer: {
     textAlign: 'center',
     padding: 10,
+  },
+  // 【改造】车机模式下封面右上角的来源标签
+  sourceLabel: {
+    paddingLeft: 5,
+    paddingBottom: 2,
+    paddingRight: 5,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
 })

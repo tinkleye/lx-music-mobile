@@ -13,6 +13,8 @@ import { useI18n } from '@/lang'
 import Text from '@/components/common/Text'
 import { handlePlay } from './listAction'
 import { useSettingValue } from '@/store/setting/hook'
+import CarPagedList, { type CarPagedListType } from '@/components/common/CarPagedList'
+import { isCarModeEnabled } from '@/config/carMode'
 
 type FlatListType = FlatListProps<LX.Music.MusicInfoOnline>
 
@@ -31,6 +33,11 @@ export interface ListProps {
   ListHeaderComponent?: FlatListType['ListEmptyComponent']
   checkHomePagerIdle: boolean
   rowType?: RowInfoType
+  /**
+   * 【车机改造】是否用「左右翻页」代替上下滚动。
+   * 车机上竖着滚动列表容易划过头、也看不清下一行，改成一屏一页更好用。
+   */
+  paged?: boolean
 }
 export interface ListType {
   setList: (list: LX.Music.MusicInfoOnline[], isAppend: boolean, showSource: boolean) => void
@@ -55,10 +62,13 @@ const List = forwardRef<ListType, ListProps>(({
   ListHeaderComponent,
   checkHomePagerIdle,
   rowType,
+  paged = false,
 }, ref) => {
   // const t = useI18n()
+  const t = useI18n()
   const theme = useTheme()
   const flatListRef = useRef<FlatList>(null)
+  const pagedRef = useRef<CarPagedListType>(null)
   const [currentList, setList] = useState<LX.Music.MusicInfoOnline[]>([])
   const [showSource, setShowSource] = useState(false)
   const isMultiSelectModeRef = useRef(false)
@@ -228,6 +238,49 @@ const List = forwardRef<ListType, ListProps>(({
       </View>
     )
   }, [onLoadMore, status, visibleMultiSelect])
+
+  // 【车机改造】分页模式：一屏一页，左滑右滑翻页，和上面的滚动列表共存，
+  // 只有排行榜这类明确要求翻页的页面才会传 paged
+  if (paged) {
+    let tip: string | null = null
+    switch (status) {
+      case 'loading':
+        tip = t('list_loading')
+        break
+      case 'end':
+        tip = t('list_end')
+        break
+      case 'error':
+        tip = t('list_error')
+        break
+    }
+    return (
+      <CarPagedList
+        ref={pagedRef}
+        data={currentList}
+        itemHeight={ITEM_HEIGHT}
+        numColumns={rowInfo.current.rowNum ?? 1}
+        keyExtractor={item => item.id}
+        onEndReached={handleLoadMore}
+        tipLabel={currentList.length ? tip : null}
+        emptyComponent={<Text size={13} color={theme['c-font-label']}>{t('car_paged_list_empty')}</Text>}
+        renderItem={(item, index) => (
+          <ListItem
+            item={item}
+            index={index}
+            showSource={showSource}
+            onPress={handlePress}
+            onLongPress={handleLongPress}
+            onShowMenu={onShowMenu}
+            selectedList={selectedList}
+            rowInfo={{ rowNum: undefined, rowWidth: '100%' }}
+            isShowAlbumName={isShowAlbumName}
+            isShowInterval={isShowInterval}
+          />
+        )}
+      />
+    )
+  }
 
   return (
     <FlatList

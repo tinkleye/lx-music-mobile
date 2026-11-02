@@ -17,6 +17,8 @@ export interface OnlineListProps {
   ListHeaderComponent?: ListProps['ListHeaderComponent']
   checkHomePagerIdle?: boolean
   rowType?: RowInfoType
+  /** 【车机改造】左右翻页模式，见 List.tsx 的说明 */
+  paged?: boolean
 }
 export interface OnlineListType {
   setList: (list: LX.Music.MusicInfoOnline[], isAppend?: boolean, showSource?: boolean) => void
@@ -31,6 +33,7 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
   ListHeaderComponent,
   checkHomePagerIdle = false,
   rowType,
+  paged = false,
 }, ref) => {
   const listRef = useRef<ListType>(null)
   const multipleModeBarRef = useRef<MultipleModeBarType>(null)
@@ -93,6 +96,7 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
           ListHeaderComponent={ListHeaderComponent}
           checkHomePagerIdle={checkHomePagerIdle}
           rowType={rowType}
+          paged={paged}
         />
         <MultipleModeBar
           ref={multipleModeBarRef}

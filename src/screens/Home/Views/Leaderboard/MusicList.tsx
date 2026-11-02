@@ -3,6 +3,10 @@ import OnlineList, { type OnlineListType, type OnlineListProps } from '@/compone
 import { clearListDetail, getListDetail, setListDetail, setListDetailInfo } from '@/core/leaderboard'
 import boardState from '@/store/leaderboard/state'
 import { handlePlay } from './listAction'
+import { isCarModeEnabled } from '@/config/carMode'
+
+// 【改造】车机模式下歌曲列表改用左右翻页
+const carMode = isCarModeEnabled()
 
 // export type MusicListProps = Pick<OnlineListProps,
 // 'onLoadMore'
@@ -93,6 +97,8 @@ export default forwardRef<MusicListType, {}>((props, ref) => {
     // 【改造】排行榜在宽屏上是两列（车机屏幕够宽，两列能一次看到更多歌），
     // 贴边问题由页面右侧留白 + 加大的「⋮」按钮解决，不限制列数
     rowType='medium'
+    // 【改造】车机模式下改为左右翻页：一屏一页完整显示，左右滑动翻页
+    paged={carMode}
    />
 })
 

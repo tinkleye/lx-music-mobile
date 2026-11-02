@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { View, AppState, Pressable, StyleSheet } from 'react-native'
 import { screenkeepAwake, screenUnkeepAwake } from '@/utils/nativeModules/utils'
 import StatusBar from '@/components/common/StatusBar'
@@ -16,6 +16,7 @@ import Lyric from './Lyric'
 import Player from './Player'
 import CarPlayer from './CarPlayer'
 import CarPlayList from './CarPlayList'
+import CarImmersiveLyric from './CarImmersiveLyric'
 import Aside from '@/screens/Home/Horizontal/Aside'
 import { pop } from '@/navigation'
 import { createStyle } from '@/utils/tools'
@@ -34,8 +35,24 @@ export default memo(({ componentId }: { componentId: string }) => {
   const { width: winWidth, height: winHeight } = useWindowSize()
   // 【改造】车机模式：左栏是否显示「当前播放列表」（默认显示播放界面）
   const [showPlayList, setShowPlayList] = useState(false)
+  // 【改造】沉浸式歌词：双击右侧歌词区进入，整屏只留当前这一句
+  const [immersive, setImmersive] = useState(false)
+  const lastLyricTapRef = useRef(0)
   const showPlayListPanel = useCallback(() => { setShowPlayList(true) }, [])
   const closePlayListPanel = useCallback(() => { setShowPlayList(false) }, [])
+  const closeImmersive = useCallback(() => { setImmersive(false) }, [])
+  // 双击判定：两次抬起间隔小于 320ms 视为双击。
+  // 用父容器的 onTouchEnd 而不是盖一层遮罩，这样歌词滚动、点击歌词跳转进度都还能用
+  const handleLyricTouchEnd = useCallback(() => {
+    if (showPlayList) return
+    const now = Date.now()
+    if (now - lastLyricTapRef.current < 320) {
+      lastLyricTapRef.current = 0
+      setImmersive(true)
+      return
+    }
+    lastLyricTapRef.current = now
+  }, [showPlayList])
   // 播放页里点击左侧导航：先退出播放页，导航栏那边再切换栏目
   const handleAsideNavigate = useCallback(() => {
     setShowPlayList(false)
@@ -90,7 +107,7 @@ export default memo(({ componentId }: { componentId: string }) => {
                   : <CarPlayer coverSize={coverSize} onShowPlayList={showPlayListPanel} />
               }
             </View>
-            <View style={styles.carLyric}>
+            <View style={styles.carLyric} onTouchEnd={handleLyricTouchEnd}>
               <Lyric />
               {
                 // 【改造】播放列表打开时，点右侧空白区域（歌词区）即可收起面板
@@ -100,6 +117,11 @@ export default memo(({ componentId }: { componentId: string }) => {
               }
             </View>
           </View>
+          {
+            // 【改造】沉浸式歌词：盖在整页最上层（连带左侧导航栏一起盖住），
+            // 双击空白处返回，长按调出设置
+            immersive ? <CarImmersiveLyric onClose={closeImmersive} /> : null
+          }
         </View>
       </PageContent>
     )

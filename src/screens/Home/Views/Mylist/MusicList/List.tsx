@@ -14,6 +14,14 @@ import type { Position } from './ListMenu'
 import type { SelectMode } from './MultipleModeBar'
 import { useActiveListId } from '@/store/list/hook'
 import { useSettingValue } from '@/store/setting/hook'
+import CarPagedList, { type CarPagedListType } from '@/components/common/CarPagedList'
+import { isCarModeEnabled } from '@/config/carMode'
+import Text from '@/components/common/Text'
+import { useTheme } from '@/store/theme/hook'
+import { useI18n } from '@/lang'
+
+// 【改造】车机模式下歌曲列表改成左右翻页（一屏一页，滑动翻页）
+const carMode = isCarModeEnabled()
 
 type FlatListType = FlatListProps<LX.Music.MusicInfo>
 
@@ -46,7 +54,10 @@ const usePlayIndex = () => {
 
 const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, onSelectAll }, ref) => {
   // const t = useI18n()
+  const t = useI18n()
+  const theme = useTheme()
   const flatListRef = useRef<FlatList>(null)
+  const pagedRef = useRef<CarPagedListType>(null)
   const [currentList, setList] = useState<LX.List.ListMusics>([])
   const listFirstScrollRef = useRef(false)
   const isMultiSelectModeRef = useRef(false)
@@ -89,10 +100,18 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       void getListMusics(listState.activeListId).then((list) => {
         const index = list.findIndex(m => m.id == info.id)
         if (index < 0) return
+        if (carMode) {
+          pagedRef.current?.scrollToIndex(index, true)
+          return
+        }
         flatListRef.current?.scrollToIndex({ index: Math.floor(index / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: true })
       })
     },
     scrollToTop() {
+      if (carMode) {
+        pagedRef.current?.scrollToPage(0, true)
+        return
+      }
       flatListRef.current?.scrollToOffset({
         offset: 0,
         animated: true,
@@ -119,11 +138,20 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
             if (waitJumpListPositionRef.current) {
               waitJumpListPositionRef.current = false
               if (playerState.playMusicInfo.listId == id && playerState.playInfo.playIndex > -1) {
+                if (carMode) {
+                  pagedRef.current?.scrollToIndex(playerState.playInfo.playIndex, false)
+                  return
+                }
                 try {
                   flatListRef.current?.scrollToIndex({ index: Math.floor(playerState.playInfo.playIndex / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: false })
                   return
                 } catch {}
               }
+            }
+            if (carMode) {
+              // 翻页模式没有纵向滚动位置的概念，切列表时直接回到第一页
+              pagedRef.current?.scrollToPage(0, false)
+              return
             }
             flatListRef.current?.scrollToOffset({ offset: position, animated: false })
           })
@@ -151,6 +179,10 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
         } else if (playerState.playInfo.playIndex > -1) {
           if (isUpdateingList) waitJumpListPositionRef.current = true
           else {
+            if (carMode) {
+              pagedRef.current?.scrollToIndex(playerState.playInfo.playIndex, true)
+              return
+            }
             try {
               flatListRef.current?.scrollToIndex({ index: Math.floor(playerState.playInfo.playIndex / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: true })
             } catch {}
@@ -266,6 +298,34 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const getkey: FlatListType['keyExtractor'] = item => item.id
   const getItemLayout: FlatListType['getItemLayout'] = (data, index) => {
     return { length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index }
+  }
+
+  // 【车机改造】分页模式：一屏一页完整显示，左右滑动翻页，不再上下滚动
+  if (carMode) {
+    return (
+      <CarPagedList
+        ref={pagedRef}
+        data={currentList}
+        itemHeight={ITEM_HEIGHT}
+        numColumns={rowInfo.current.rowNum ?? 1}
+        keyExtractor={item => item.id}
+        emptyComponent={<Text size={13} color={theme['c-font-label']}>{t('car_paged_list_empty')}</Text>}
+        renderItem={(item, index) => (
+          <ListItem
+            item={item}
+            index={index}
+            activeIndex={activeIndex}
+            onPress={handlePress}
+            onLongPress={handleLongPress}
+            onShowMenu={onShowMenu}
+            selectedList={selectedList}
+            rowInfo={{ rowNum: undefined, rowWidth: '100%' }}
+            isShowAlbumName={isShowAlbumName}
+            isShowInterval={isShowInterval}
+          />
+        )}
+      />
+    )
   }
 
   return (
