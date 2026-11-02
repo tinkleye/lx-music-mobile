@@ -32,6 +32,17 @@ const init = (callback: () => void | Promise<void>) => {
       backgroundColor: 'transparent',
       style: 'light',
     },
+    // 【改造】底部导航栏（车机上挂着空调栏）也要显式声明。
+    //
+    // 这是空调栏闪现的最终根因：导航库对没有设置的页面默认按「显示」处理，
+    // 每次页面切换都会调用新版 insets API 的 showNavigationBar()，
+    // 里面有一步 setDecorFitsSystemWindows(true)，把窗口从
+    // "内容延伸到系统栏之下"的全屏状态拉回来 —— 空调栏就跟着冒出来。
+    // 声明 visible:false 后，导航库走 hideNavigationBar()，
+    // 正好等价于我们想要的沉浸式隐藏（含上滑临时唤出自动缩回）。
+    navigationBar: {
+      visible: !isFullscreenEnabled(),
+    },
     // animations: {
     //   setRoot: {
     //     waitForRender: true,

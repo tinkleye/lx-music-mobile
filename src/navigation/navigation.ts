@@ -73,7 +73,10 @@ export async function pushHomeScreen() {
                 backgroundColor: 'transparent',
               },
               navigationBar: {
-                // visible: false,
+                // 【改造】必须显式声明。导航库对未设置的页面默认按「显示」处理，
+                // 切页时会调 setDecorFitsSystemWindows(true) 把窗口从全屏状态拉回来，
+                // 车机的空调栏就是跟着这一步冒出来的
+                visible: !isFullscreenEnabled(),
                 backgroundColor: theme['c-content-background'],
               },
               layout: {
@@ -138,7 +141,8 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            // visible: false,
+            // 【改造】必须显式声明（同上），否则切页必出空调栏
+            visible: !isFullscreenEnabled(),
             backgroundColor: theme['c-content-background'],
           },
           layout: {
@@ -223,7 +227,8 @@ export function pushSonglistDetailScreen(componentId: string, info: ListInfoItem
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            // visible: false,
+            // 【改造】必须显式声明（同上），否则切页必出空调栏
+            visible: !isFullscreenEnabled(),
             backgroundColor: theme['c-content-background'],
           },
           layout: {
@@ -356,7 +361,8 @@ export function pushCommentScreen(componentId: string) {
             backgroundColor: 'transparent',
           },
           navigationBar: {
-            // visible: false,
+            // 【改造】必须显式声明（同上），否则切页必出空调栏
+            visible: !isFullscreenEnabled(),
             backgroundColor: theme['c-content-background'],
           },
           layout: {

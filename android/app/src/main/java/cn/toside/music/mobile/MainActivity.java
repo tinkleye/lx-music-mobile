@@ -8,14 +8,6 @@ import android.view.WindowManager;
 
 import com.reactnativenavigation.NavigationActivity;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
-
 /**
  * 【改造】打开 App 即进入沉浸式全屏，并支持在设置页里随时开关。
  *
@@ -25,19 +17,18 @@ import java.util.Locale;
  * 3. 保留「上滑临时唤出」的系统行为（IMMERSIVE_STICKY），几秒后自动缩回；
  * 4. 由 JS 调用 {@link #setFullscreenEnabled(boolean)} 可实时开/关（跟随「车机模式」开关）。
  *
- * 【为什么回到"钝"策略（重要）】
+ * 【空调栏问题的最终解法（两层配合）】
  *
- * 曾经试过更激进的方案：窗口属性一变就同步补、每 300ms 轮询守护、
- * 系统栏一冒出来 200ms 内补齐。实测在车机上反而让空调栏"闪现"——
- * 因为导航库在页面切换动画期间会多次改动窗口标志，我们每次都立刻对抗回去，
- * 双方拉锯，空调栏就反复收到显示/隐藏指令。
+ * 根因在导航库：它对没有显式设置 navigationBar.visible 的页面默认按「显示」处理，
+ * 每次页面切换都会调 setDecorFitsSystemWindows(true) + show(navigationBars)，
+ * 把窗口从"内容延伸到系统栏之下"的全屏状态拉回来 —— 车机空调栏跟着出现。
+ * 已在 JS 导航配置里给每个页面（含全局默认）显式声明 navigationBar.visible，
+ * 让导航库自己走 hideNavigationBar()，这是根治。
  *
- * 第一版（打开即全屏那版）用户实测没有闪现，它的策略是"钝"的：
- *   - 不做轮询、不做窗口属性监听；
- *   - 只在三个时机一次性补全：onCreate、onResume、onWindowFocusChanged；
+ * 原生侧保持"钝"策略作为兜底（不做实时对抗，避免与导航库拉锯造成闪现）：
+ *   - 只在 onCreate、onResume、onWindowFocusChanged 三个时机一次性补全；
  *   - 系统栏可见性变化时延时 1 秒再补。
- * 页面切换完成、焦点恢复的那一刻补全，恰好赶在空调栏弹出动画开始之前，
- * 所以用户看不到闪。本版完整恢复这个机制，只加上车机模式的动态开关。
+ * 焦点恢复那一刻补全，恰好赶在空调栏弹出动画开始之前。
  *
  * 横屏锁定不在这里，写在 AndroidManifest.xml 的 android:screenOrientation="sensorLandscape"。
  *
@@ -63,7 +54,6 @@ public class MainActivity extends NavigationActivity {
   /**
    * 系统栏被唤出后，隔多久重新隐藏（毫秒）。
    * 调大 = 上滑唤出的系统栏停留更久；调小 = 更"霸道"地一直保持全屏。
-   * 保持第一版的 1000ms —— 这个延时实测不影响车机空调栏的隐藏体验。
    */
   private static final long REHIDE_DELAY_MS = 1000L;
 
@@ -71,8 +61,6 @@ public class MainActivity extends NavigationActivity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     currentInstance = this;
-
-    installCrashLogger();
 
     try {
       final View decorView = getWindow().getDecorView();
@@ -104,13 +92,6 @@ public class MainActivity extends NavigationActivity {
   }
 
   @Override
-  protected void onPause() {
-    // 离开界面（被其他应用/弹窗盖住）期间不再做任何修补
-    // （第一版没有这句，是配合开关加的，行为不受影响）
-    super.onPause();
-  }
-
-  @Override
   protected void onDestroy() {
     if (currentInstance == this) currentInstance = null;
     super.onDestroy();
@@ -120,8 +101,8 @@ public class MainActivity extends NavigationActivity {
   public void onWindowFocusChanged(boolean hasFocus) {
     super.onWindowFocusChanged(hasFocus);
     // 输入法收起、音量条消失后重新获得焦点时也补一次。
-    // 页面切换完成后焦点恢复也会走到这里 —— 这正是第一版"不闪"的关键时机：
-    // 在此刻一次性补全，赶在空调栏弹出动画开始之前。
+    // 页面切换完成后焦点恢复也会走到这里 —— 在此刻一次性补全，
+    // 恰好赶在空调栏弹出动画开始之前。
     if (hasFocus && immersiveEnabled) applyImmersiveFullscreen();
   }
 
@@ -183,40 +164,6 @@ public class MainActivity extends NavigationActivity {
       Window window = getWindow();
       window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
       window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
-    } catch (Throwable ignored) {
-    }
-  }
-
-  /**
-   * 【排障用】把未捕获异常的堆栈写到 App 私有外部目录，方便定位闪退。
-   *
-   * 路径：Android/data/cn.toside.music.mobile/files/crash.log
-   * 整个逻辑全部 try-catch，写不进去就算了，绝不因为它自己再崩一次。
-   */
-  private static boolean crashLoggerInstalled = false;
-
-  private void installCrashLogger() {
-    if (crashLoggerInstalled) return;
-    crashLoggerInstalled = true;
-    try {
-      final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
-      Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-        try {
-          File dir = getExternalFilesDir(null);
-          if (dir != null) {
-            File logFile = new File(dir, "crash.log");
-            StringWriter buffer = new StringWriter();
-            throwable.printStackTrace(new PrintWriter(buffer));
-            FileWriter writer = new FileWriter(logFile, false);
-            writer.write(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())
-              + "  thread=" + thread.getName() + "\n");
-            writer.write(buffer.toString());
-            writer.close();
-          }
-        } catch (Throwable ignored) {
-        }
-        if (previous != null) previous.uncaughtException(thread, throwable);
-      });
     } catch (Throwable ignored) {
     }
   }
