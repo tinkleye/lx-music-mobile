@@ -86,16 +86,23 @@ const parseSize = (size?: string | null) => {
  *   2. 当前在线音源声明支持这个音质（global.lx.qualityList[source]）。
  * 音源没声明（自定义源未定义 qualitys）时不做第二层过滤，交给取址结果判定。
  */
-export const getDownloadQualitys = (musicInfo: LX.Music.MusicInfoOnline): DownloadQuality[] => {
-  const qualitys = musicInfo.meta?._qualitys ?? {}
+export const getDownloadQualitys = (musicInfo: LX.Music.MusicInfo): DownloadQuality[] => {
+  // 本地歌曲没有在线音质概念
+  if (musicInfo.source == 'local') return []
+  const qualitys = (musicInfo.meta as Partial<LX.Music.MusicInfoMeta_online>)?._qualitys ?? {}
   const sizeMap: Partial<Record<LX.Quality, string | null>> = {}
-  if (musicInfo.meta?.qualitys?.length) {
-    for (const item of musicInfo.meta.qualitys) sizeMap[item.type] = item.size
+  for (const item of ((musicInfo.meta as Partial<LX.Music.MusicInfoMeta_online>)?.qualitys ?? [])) {
+    sizeMap[item.type] = item.size
   }
   const supported = global.lx.qualityList?.[musicInfo.source as LX.Source] as LX.Quality[] | undefined
 
+  // 【车机改造】导入/同步的歌单里歌曲 meta 可能被裁掉 _qualitys，
+  // 此时退而求其次：只要音源声明支持就列出来，能不能下交给取址结果判定
+  const hasQualityMeta = Object.keys(qualitys).length > 0
+
   return QUALITY_ORDER.filter((quality) => {
-    if (!qualitys[quality]) return false
+    if (!hasQualityMeta && !(supported?.length)) return false
+    if (hasQualityMeta && !qualitys[quality]) return false
     if (supported?.length && !supported.includes(quality)) return false
     return true
   }).map(quality => {
@@ -186,7 +193,7 @@ export interface DownloadTaskHandle {
  * 开始一首歌的下载。cancel() 会中断网络请求并删掉下了一半的文件。
  */
 export const startDownload = ({ musicInfo, quality, onProgress }: {
-  musicInfo: LX.Music.MusicInfoOnline
+  musicInfo: LX.Music.MusicInfo
   quality: LX.Quality
   onProgress?: (progress: DownloadProgress) => void
 }): DownloadTaskHandle => {

@@ -6,6 +6,7 @@ import { clearMusicUrl, handleDislikeMusic, handlePlay, handlePlayLater, handleR
 import List, { type ListType } from './List'
 import ListMusicAdd, { type MusicAddModalType as ListMusicAddType } from '@/components/MusicAddModal'
 import ListMusicMultiAdd, { type MusicMultiAddModalType as ListAddMultiType } from '@/components/MusicMultiAddModal'
+import DownloadModal, { type MusicDownloadModalType } from '@/components/MusicDownloadModal'
 import { createStyle } from '@/utils/tools'
 import { type LayoutChangeEvent, View } from 'react-native'
 import ActiveList, { type ActiveListType } from './ActiveList'
@@ -30,6 +31,7 @@ export default () => {
   const metadataEditTypeRef = useRef<MetadataEditType>(null)
   const listMenuRef = useRef<ListMenuType>(null)
   const musicToggleModalRef = useRef<MusicToggleModalType>(null)
+  const downloadModalRef = useRef<MusicDownloadModalType>(null)
   const layoutHeightRef = useRef<number>(0)
   const isShowMultipleModeBar = useRef(false)
   const isShowSearchBarModeBar = useRef(false)
@@ -108,8 +110,17 @@ export default () => {
       listMusicAddRef.current?.show({ musicInfo: info.musicInfo, listId: info.listId, isMove: true })
     }
   }, [])
-  const handleEditMetadata = useCallback((info: SelectInfo) => {
-    if (info.musicInfo.source != 'local') return
+  // 【车机改造】本地歌曲没有在线音质，菜单里已置灰，这里再兜底过滤一次
+  const handleDownloadMusic = useCallback((info: SelectInfo) => {
+    if (info.musicInfo.source == 'local') return
+    const onlineSelected = info.selectedList.filter(m => m.source != 'local')
+    hancelExitSelect()
+    downloadModalRef.current?.show({
+      musicInfo: info.musicInfo,
+      selectedList: onlineSelected,
+    })
+  }, [hancelExitSelect])
+  const handleEditMetadata = useCallback((info: SelectInfo) => {    if (info.musicInfo.source != 'local') return
     selectedInfoRef.current = info
     metadataEditTypeRef.current?.show(info.musicInfo.meta.filePath)
   }, [])
@@ -155,6 +166,7 @@ export default () => {
         ref={listMenuRef}
         onPlay={info => { handlePlay(info.listId, info.index) }}
         onPlayLater={info => { hancelExitSelect(); handlePlayLater(info.listId, info.musicInfo, info.selectedList, hancelExitSelect) }}
+        onDownload={handleDownloadMusic}
         onRemove={info => { hancelExitSelect(); handleRemove(info.listId, info.musicInfo, info.selectedList, hancelExitSelect) }}
         onDislikeMusic={info => { void handleDislikeMusic(info.musicInfo) }}
         onCopyName={info => { handleShare(info.musicInfo) }}
@@ -171,6 +183,7 @@ export default () => {
         onUpdate={handleUpdateMetadata}
       />
       <MusicToggleModal ref={musicToggleModalRef} />
+      <DownloadModal ref={downloadModalRef} onDownloaded={hancelExitSelect} />
     </View>
   )
 }

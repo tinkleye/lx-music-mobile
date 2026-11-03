@@ -19,9 +19,9 @@ import {
 } from '@/core/download'
 
 export interface DownloadSelectInfo {
-  musicInfo: LX.Music.MusicInfoOnline
+  musicInfo: LX.Music.MusicInfo
   /** 多选模式下选中的歌曲，长度 > 1 时视为批量下载 */
-  selectedList: LX.Music.MusicInfoOnline[]
+  selectedList: LX.Music.MusicInfo[]
 }
 
 export interface MusicDownloadModalProps {
