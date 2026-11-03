@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  useColorScheme,
   useWindowDimensions,
 } from 'react-native'
 
@@ -25,6 +26,8 @@ import {
   CAR_LYRIC_BLUR_RATIO,
   CAR_LYRIC_COLORS,
   CAR_LYRIC_FONT_FAMILY,
+  CAR_LYRIC_NIGHT_DIM,
+  dimColor,
   getCarLyricSetting,
   loadCarLyricSetting,
   saveCarLyricSetting,
@@ -220,14 +223,25 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   const [showHint, setShowHint] = useState(true)
   // 底部控制条默认隐藏，单击才浮出来，5 秒没操作自动收起
   const [showControls, setShowControls] = useState(false)
-  const [display, setDisplay] = useState(() => ({
-    text: lines[line]?.text ?? '',
-    translation: lines[line]?.extendedLyrics?.[0] ?? '',
-  }))
+  /**
+   * 换句动画用「双层交叉淡化」：两个槽位轮流装新旧两句歌词，
+   * 换句时旧句淡出上移、新句淡入上浮，两句话同时在屏上交叠，
+   * 中间不再出现「先空一下再冒出来」的黑档，看起来连贯得多。
+   */
+  type LyricSlot = { text: string, translation: string }
+  const [slots, setSlots] = useState<LyricSlot[]>([{ text: '', translation: '' }, { text: '', translation: '' }])
+  // 当前显示内容的槽位下标（0/1）
+  const activeSlotRef = useRef(0)
+  const slotOpacity = [
+    useRef(new Animated.Value(1)).current,
+    useRef(new Animated.Value(0)).current,
+  ]
+  const slotLift = [
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+  ]
 
   const enterOpacity = useRef(new Animated.Value(0)).current
-  const lineOpacity = useRef(new Animated.Value(1)).current
-  const lineLift = useRef(new Animated.Value(0)).current
   const panelAnim = useRef(new Animated.Value(0)).current
   const lastTapRef = useRef(0)
   const hintTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -276,35 +290,46 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     void toggleTranslation(false)
   }, [])
 
-  // 换句时先淡出再淡入，配合一点点上浮，看起来像「浮上来」
+  // 换句：旧句淡出上移、新句淡入上浮，交叉进行（柔和档更慢更连贯）
   useEffect(() => {
+    const incoming = { text, translation }
     // 刚进入这个模式时直接落到当前这句，不要先淡出一次（会闪）
     if (isFirstLineRef.current) {
       isFirstLineRef.current = false
-      setDisplay({ text, translation })
+      const idx = activeSlotRef.current
+      slotOpacity.forEach((v, i) => v.stopAnimation())
+      slotOpacity[idx].setValue(1)
+      slotLift[idx].setValue(0)
+      setSlots(prev => prev.map((s, i) => i == idx ? incoming : s))
       return
     }
-    // 关掉动画（部分车机 GPU 弱，淡入淡出会掉帧）就直接换字
-    if (!setting.animate) {
-      lineOpacity.stopAnimation()
-      lineOpacity.setValue(1)
-      lineLift.setValue(0)
-      setDisplay({ text, translation })
+    // 关掉动画（部分车机 GPU 弱）就直接换字
+    if (setting.animate == 'off') {
+      slotOpacity.forEach(v => v.stopAnimation())
+      slotLift.forEach(v => v.stopAnimation())
+      const idx = activeSlotRef.current
+      slotOpacity[idx].setValue(1)
+      slotLift[idx].setValue(0)
+      slotOpacity[1 - idx].setValue(0)
+      setSlots(prev => prev.map((s, i) => i == idx ? incoming : s))
       return
     }
-    lineOpacity.stopAnimation()
-    Animated.timing(lineOpacity, {
-      toValue: 0,
-      duration: 120,
-      useNativeDriver: true,
-    }).start(() => {
-      setDisplay({ text, translation })
-      lineLift.setValue(scaleSizeH(10))
-      Animated.parallel([
-        Animated.timing(lineOpacity, { toValue: 1, duration: 260, useNativeDriver: true }),
-        Animated.timing(lineLift, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]).start()
-    })
+    const soft = setting.animate == 'soft'
+    const outIdx = activeSlotRef.current
+    const inIdx = 1 - outIdx
+    // 动画途中又来新句：停住当前动画，从当前透明度继续交叉，不闪不跳
+    slotOpacity[outIdx].stopAnimation()
+    slotOpacity[inIdx].stopAnimation()
+    slotLift[outIdx].stopAnimation()
+    slotLift[inIdx].stopAnimation()
+    slotLift[inIdx].setValue(scaleSizeH(12))
+    setSlots(prev => prev.map((s, i) => i == inIdx ? incoming : s))
+    Animated.parallel([
+      Animated.timing(slotOpacity[outIdx], { toValue: 0, duration: soft ? 340 : 180, useNativeDriver: true }),
+      Animated.timing(slotLift[outIdx], { toValue: -scaleSizeH(10), duration: soft ? 400 : 240, useNativeDriver: true }),
+      Animated.timing(slotOpacity[inIdx], { toValue: 1, duration: soft ? 480 : 300, useNativeDriver: true }),
+      Animated.timing(slotLift[inIdx], { toValue: 0, duration: soft ? 540 : 340, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start(() => { activeSlotRef.current = inIdx })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, translation, setting.animate])
 
@@ -404,8 +429,15 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   const lyricSize = setting.fontSize
   const transSize = Math.max(Math.round(lyricSize * setting.translationScale), 12)
   const isCenter = setting.align == 'center'
-  const hasLyric = !!display.text
   const emptyText = t('car_lyric_no_lyric')
+  /**
+   * 夜间模式：跟随系统深色模式（或强制开）时，把字体压暗、背景压得更深，
+   * 晚上行车不至于晃眼。字色只对十六进制色生效，压暗比例见 CAR_LYRIC_NIGHT_DIM
+   */
+  const colorScheme = useColorScheme()
+  const isNight = setting.nightMode == 'on' || (setting.nightMode == 'auto' && colorScheme == 'dark')
+  const lyricColor = isNight ? dimColor(setting.color, CAR_LYRIC_NIGHT_DIM) : setting.color
+  const emptyColor = isNight ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.3)'
   const showCover = setting.background == 'cover' && !!musicInfo.pic
   // 模糊半径跟着屏幕短边走：太小看不出模糊，太大安卓会糊成色块
   const blurRadius = Math.round(Math.min(Math.min(width, height) * CAR_LYRIC_BLUR_RATIO[setting.blur], 60))
@@ -433,9 +465,10 @@ export default memo(({ onClose }: { onClose: () => void }) => {
     if (needed <= capacity) return base
     return Math.max(Math.floor(base * capacity / needed), 14)
   }
-  // 歌词与译文都最多两行：正常长度的句子原字号换行即可，不缩
-  const lyricFit = fitFontSize(display.text, lyricSize, 1.2, 2)
-  const transFit = fitFontSize(display.translation, transSize, 0.8, 2)
+  // 交叉淡化的舞台高度按「歌词两行 + 译文两行」预留，两句歌词同屏叠放时
+  // 位置不会因为行数不同而上下跳；单行歌词在舞台里垂直居中
+  const stageH = Math.round(setSpText(lyricSize) * 1.26 * 2)
+    + (setting.showTranslation ? scaleSizeH(16) + Math.round(setSpText(transSize) * 1.35 * 2) : 0)
 
   // 悬浮设置卡宽度：约占屏宽 1/3、封顶 560，保证中间的歌词还看得见
   const panelWidth = Math.max(Math.min(Math.round(width * 0.34), 560), 420)
@@ -466,7 +499,10 @@ export default memo(({ onClose }: { onClose: () => void }) => {
       <View
         style={{
           ...StyleSheet.absoluteFillObject,
-          backgroundColor: showCover ? 'rgba(6,7,10,0.56)' : 'rgba(7,7,9,0.97)',
+          // 夜间模式把封面背景再压深一截，配合调暗的字体，晚上不晃眼
+          backgroundColor: showCover
+            ? (isNight ? 'rgba(4,5,8,0.78)' : 'rgba(6,7,10,0.56)')
+            : (isNight ? 'rgba(5,5,7,0.99)' : 'rgba(7,7,9,0.97)'),
         }}
         pointerEvents="none"
       />
@@ -498,48 +534,70 @@ export default memo(({ onClose }: { onClose: () => void }) => {
             : null
         }
 
-        {/* 中间：当前这一句 */}
+        {/* 中间：当前这一句（双层交叉淡化舞台） */}
         <View style={{ ...styles.lyricArea, justifyContent: areaJustify }} pointerEvents="none">
-          <Animated.View style={{ opacity: lineOpacity, transform: [{ translateY: lineLift }], width: '100%' }}>
-            <Text
-              style={{
-                textAlign: setting.align,
-                lineHeight: Math.round(setSpText(lyricFit) * 1.26),
-                letterSpacing: 1.2,
-                fontWeight: setting.bold ? '700' : '400',
-                fontFamily,
-                textShadowColor: 'rgba(0,0,0,0.6)',
-                textShadowOffset: { width: 0, height: 2 },
-                textShadowRadius: 16,
-                paddingLeft: isCenter ? 0 : scaleSizeW(6),
-              }}
-              size={lyricFit}
-              color={hasLyric ? setting.color : 'rgba(255,255,255,0.3)'}
-              textBreakStrategy="simple"
-            >{hasLyric ? display.text : emptyText}</Text>
+          <View style={{ width: '100%', height: stageH }}>
             {
-              setting.showTranslation && hasLyric && display.translation
-                ? (
+              slots.map((slot, slotIndex) => {
+                const lyricFit = fitFontSize(slot.text, lyricSize, 1.2, 2)
+                const transFit = fitFontSize(slot.translation, transSize, 0.8, 2)
+                return (
+                  <Animated.View
+                    key={slotIndex}
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      height: stageH,
+                      justifyContent: 'center',
+                      opacity: slotOpacity[slotIndex],
+                      transform: [{ translateY: slotLift[slotIndex] }],
+                    }}
+                  >
                     <Text
                       style={{
-                        marginTop: scaleSizeH(16),
                         textAlign: setting.align,
-                        lineHeight: Math.round(setSpText(transFit) * 1.35),
-                        letterSpacing: 0.8,
-                        opacity: 0.62,
+                        lineHeight: Math.round(setSpText(lyricFit) * 1.26),
+                        letterSpacing: 1.2,
+                        fontWeight: setting.bold ? '700' : '400',
                         fontFamily,
-                        textShadowColor: 'rgba(0,0,0,0.5)',
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 10,
+                        textShadowColor: 'rgba(0,0,0,0.6)',
+                        textShadowOffset: { width: 0, height: 2 },
+                        textShadowRadius: 16,
+                        paddingLeft: isCenter ? 0 : scaleSizeW(6),
                       }}
-                      size={transFit}
-                      color={setting.color}
+                      size={lyricFit}
+                      color={slot.text ? lyricColor : emptyColor}
                       textBreakStrategy="simple"
-                    >{display.translation}</Text>
-                  )
-                : null
+                    >{slot.text || emptyText}</Text>
+                    {
+                      setting.showTranslation && slot.translation
+                        ? (
+                            <Text
+                              style={{
+                                marginTop: scaleSizeH(16),
+                                textAlign: setting.align,
+                                lineHeight: Math.round(setSpText(transFit) * 1.35),
+                                letterSpacing: 0.8,
+                                opacity: 0.62,
+                                fontFamily,
+                                textShadowColor: 'rgba(0,0,0,0.5)',
+                                textShadowOffset: { width: 0, height: 1 },
+                                textShadowRadius: 10,
+                              }}
+                              size={transFit}
+                              color={lyricColor}
+                              textBreakStrategy="simple"
+                            >{slot.translation}</Text>
+                          )
+                        : null
+                    }
+                  </Animated.View>
+                )
+              })
             }
-          </Animated.View>
+          </View>
         </View>
       </Pressable>
 
@@ -703,7 +761,7 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                         </Cell>
                       </View>
 
-                      {/* 第 5 行：顶部歌名 | 换句动画 */}
+                      {/* 第 5 行：顶部歌名 | 背景 */}
                       <View style={styles.gridRow}>
                         <Cell label={t('car_lyric_show_title')}>
                           <Options
@@ -715,20 +773,6 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                             onChange={value => { update({ showTitle: value == 'on' }) }}
                           />
                         </Cell>
-                        <Cell label={t('car_lyric_animate')}>
-                          <Options
-                            value={setting.animate ? 'on' : 'off'}
-                            options={[
-                              { value: 'on', label: t('car_lyric_on') },
-                              { value: 'off', label: t('car_lyric_off') },
-                            ]}
-                            onChange={value => { update({ animate: value == 'on' }) }}
-                          />
-                        </Cell>
-                      </View>
-
-                      {/* 第 6 行：背景 | 背景模糊 */}
-                      <View style={styles.gridRow}>
                         <Cell label={t('car_lyric_bg')}>
                           <Options
                             value={setting.background}
@@ -739,6 +783,10 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                             onChange={value => { update({ background: value }) }}
                           />
                         </Cell>
+                      </View>
+
+                      {/* 第 6 行：背景模糊 | 夜间模式 */}
+                      <View style={styles.gridRow}>
                         <Cell label={t('car_lyric_blur')}>
                           <Options
                             value={setting.blur}
@@ -748,6 +796,32 @@ export default memo(({ onClose }: { onClose: () => void }) => {
                               { value: 'high', label: t('car_lyric_size_large') },
                             ]}
                             onChange={value => { update({ blur: value }) }}
+                          />
+                        </Cell>
+                        <Cell label={t('car_lyric_night')}>
+                          <Options
+                            value={setting.nightMode}
+                            options={[
+                              { value: 'auto', label: t('car_lyric_night_auto') },
+                              { value: 'on', label: t('car_lyric_night_on') },
+                              { value: 'off', label: t('car_lyric_night_off') },
+                            ]}
+                            onChange={value => { update({ nightMode: value }) }}
+                          />
+                        </Cell>
+                      </View>
+
+                      {/* 第 7 行：换句动画（柔和 / 快速 / 关闭） */}
+                      <View style={styles.gridRow}>
+                        <Cell label={t('car_lyric_animate')}>
+                          <Options
+                            value={setting.animate}
+                            options={[
+                              { value: 'soft', label: t('car_lyric_anim_soft') },
+                              { value: 'fast', label: t('car_lyric_anim_fast') },
+                              { value: 'off', label: t('car_lyric_anim_off') },
+                            ]}
+                            onChange={value => { update({ animate: value }) }}
                           />
                         </Cell>
                       </View>

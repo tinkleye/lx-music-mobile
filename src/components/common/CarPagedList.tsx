@@ -77,11 +77,12 @@ export interface CarPagedListProps<T> {
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList) as any
 
 /** 单页容器：根据自己离屏幕中心的距离做淡入淡出 + 视差 */
-const Page = memo(({ index, width, height, paddingHorizontal, scrollX, children }: {
+const Page = memo(({ index, width, height, paddingHorizontal, padTop, scrollX, children }: {
   index: number
   width: number
   height: number
   paddingHorizontal: number
+  padTop: number
   scrollX: Animated.Value
   children: ReactNode
 }) => {
@@ -100,7 +101,9 @@ const Page = memo(({ index, width, height, paddingHorizontal, scrollX, children 
         transform: [{ translateX }],
       }}
     >
-      {children}
+      <View style={{ flex: 1, paddingTop: padTop }}>
+        {children}
+      </View>
     </Animated.View>
   )
 })
@@ -152,6 +155,10 @@ function CarPagedListInner<T>({
   // 一页能放几行：向下取整，保证每一行都能完整显示，不会出现「半行」
   const rows = isReady && itemHeight > 0 ? Math.max(1, Math.floor(size.height / itemHeight)) : 1
   const pageSize = rows * cols
+  // 【车机改造】行高取整后页面总会剩一段高度，之前全部留在底部，
+  // 看起来就是「歌曲贴着屏幕顶、和页码之间空一大块」。
+  // 现在把余量平分成上下两份，让整页内容垂直居中
+  const padTop = isReady ? Math.max(0, Math.floor((size.height - rows * itemHeight) / 2)) : 0
 
   // 把数据切成「一页一阵列」，不足一页的用 null 补齐，保证每页大小一致
   const pages = useMemo(() => {
@@ -357,6 +364,7 @@ function CarPagedListInner<T>({
       width={pageWidth}
       height={size.height}
       paddingHorizontal={paddingHorizontal}
+      padTop={padTop}
       scrollX={scrollX}
     >
       {
