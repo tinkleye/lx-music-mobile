@@ -169,8 +169,8 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
   const carTip = useMemo(() => {
     switch (status) {
       case 'loading': return t('list_loading')
+      case 'end': return t('list_end')
       case 'error': return t('list_error')
-      // 【优化】翻到头不再显示「到底啦」
       default: return null
     }
   }, [status, t])

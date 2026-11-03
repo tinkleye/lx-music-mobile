@@ -247,10 +247,12 @@ const List = forwardRef<ListType, ListProps>(({
       case 'loading':
         tip = t('list_loading')
         break
+      case 'end':
+        tip = t('list_end')
+        break
       case 'error':
         tip = t('list_error')
         break
-      // 【优化】翻到头不再显示「到底啦」，列表本身没有滚动条，这句话没什么用
     }
     return (
       <CarPagedList

@@ -65,7 +65,7 @@ export interface CarPagedListProps<T> {
   keyExtractor?: (item: T, index: number) => string
   /** 翻到最后一页时触发（用于加载更多） */
   onEndReached?: () => void
-  /** 底部左侧的状态提示，如「加载中…」 */
+  /** 底部左侧的状态提示，如「加载中…」「到底啦」 */
   tipLabel?: string | null
   /** 数据为空时显示的内容 */
   emptyComponent?: ReactNode
@@ -126,6 +126,8 @@ function CarPagedListInner<T>({
   const listRef = useRef<FlatList<(T | null)[]>>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const pageRef = useRef(0)
+  // 当前页码（供右下角页码指示器显示）。ref 不触发渲染，所以再存一份 state
+  const [currentPage, setCurrentPage] = useState(0)
   const lastPageSizeRef = useRef(0)
   // 有些页面（如「我的列表」）会在列表还没完成布局时就要跳转到当前播放的歌，
   // 那时算不出一页多少条，先把目标下标存下来，布局完成后补跳
@@ -165,10 +167,18 @@ function CarPagedListInner<T>({
 
   const pageCount = pages.length
 
+  // 页码统一的落点：ref（逻辑用）和 state（页码指示器渲染用）一起更新
+  const applyPage = useCallback((next: number) => {
+    const target = Math.max(0, Math.min(next, Math.max(pageCount - 1, 0)))
+    pageRef.current = target
+    setCurrentPage(prev => prev == target ? prev : target)
+  }, [pageCount])
+
   const syncPage = useCallback((next: number, animated = true) => {
     const target = Math.max(0, Math.min(next, pageCount - 1))
     if (!pageWidth) return
     pageRef.current = target
+    setCurrentPage(prev => prev == target ? prev : target)
     try {
       listRef.current?.scrollToOffset({ offset: target * pageWidth, animated })
     } catch {}
@@ -214,6 +224,7 @@ function CarPagedListInner<T>({
     if (prev == null || sig == null || prev === sig) return
     pageRef.current = 0
     lastXRef.current = 0
+    setCurrentPage(0)
     scrollX.setValue(0)
     try {
       listRef.current?.scrollToOffset({ offset: 0, animated: false })
@@ -267,16 +278,20 @@ function CarPagedListInner<T>({
     setTimeout(() => { endReachedLockRef.current = false }, 600)
   }, [onEndReached])
 
-  // onScroll 的 JS 监听：原生驱动照常跑动画，这里只负责把最新偏移记下来
+  // onScroll 的 JS 监听：原生驱动照常跑动画，这里只负责把最新偏移记下来，
+  // 顺便实时更新当前页码（右下角页码指示器靠它跟手）
   const trackScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     lastXRef.current = e.nativeEvent.contentOffset.x
-  }, [])
+    if (!pageWidth) return
+    applyPage(Math.round(e.nativeEvent.contentOffset.x / pageWidth))
+  }, [pageWidth, applyPage])
 
   /** 翻到指定页（带落位时间戳，用于忽略动画途中系统补发的事件） */
   const settleTo = useCallback((target: number) => {
     const clamped = Math.max(0, Math.min(target, pageCount - 1))
     if (!pageWidth) return
     pageRef.current = clamped
+    setCurrentPage(prev => prev == clamped ? prev : clamped)
     snapAtRef.current = Date.now()
     try {
       listRef.current?.scrollToOffset({ offset: clamped * pageWidth, animated: true })
@@ -330,6 +345,7 @@ function CarPagedListInner<T>({
       return
     }
     pageRef.current = nearest
+    setCurrentPage(prev => prev == nearest ? prev : nearest)
     // 翻到最后一页 → 该加载下一页数据了
     if (nearest >= pageCount - 1) triggerEndReached()
   }
@@ -420,6 +436,16 @@ function CarPagedListInner<T>({
             )
           : null
       }
+      {/* 右下角页码指示器：当前页 / 总页数（数据为空时不显示） */}
+      {
+        !showEmpty && pageCount > 0
+          ? (
+              <View style={styles.pageIndicator} pointerEvents="none">
+                <Text size={11} color={theme['c-350']}>{`${currentPage + 1} / ${pageCount}`}</Text>
+              </View>
+            )
+          : null
+      }
     </View>
   )
 }
@@ -441,6 +467,11 @@ const styles = createStyle({
   tip: {
     position: 'absolute',
     left: 14,
+    bottom: 6,
+  },
+  pageIndicator: {
+    position: 'absolute',
+    right: 14,
     bottom: 6,
   },
 })
