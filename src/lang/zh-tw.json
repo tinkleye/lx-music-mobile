@@ -597,6 +597,7 @@
   "download_failed_invalid": "下載到的檔案無效（音源可能限制了該音質）",
   "download_empty_quality": "這首歌暫無可下載的音質，可能是目前音源不支援",
   "download_no_permission": "沒有儲存權限，無法儲存到本機",
+  "download_permission_fallback": "沒有儲存權限，將儲存到 App 私有目錄",
   "download_retry": "重新選擇",
   "download_close": "完成"
 }

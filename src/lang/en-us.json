@@ -597,6 +597,7 @@
   "download_failed_invalid": "Downloaded file is invalid (the source may restrict this quality)",
   "download_empty_quality": "No downloadable quality for this song",
   "download_no_permission": "Storage permission is required to save files",
+  "download_permission_fallback": "No storage permission, saving to the app private folder",
   "download_retry": "Choose again",
   "download_close": "Done"
 }

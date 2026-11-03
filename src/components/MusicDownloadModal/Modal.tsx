@@ -111,11 +111,9 @@ export default forwardRef<MusicDownloadModalType, MusicDownloadModalProps>(({ on
       }
     }
 
+    // 没给权限也不拦着：公共目录写不进去时会自动退到 App 私有目录（那里不需要权限）
     const granted = await requestStoragePermission()
-    if (granted === false) {
-      toast(t('download_no_permission'))
-      return
-    }
+    if (granted === false) toast(t('download_permission_fallback'))
 
     canceledRef.current = false
     setStage('running')
