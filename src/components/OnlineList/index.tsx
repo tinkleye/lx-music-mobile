@@ -5,6 +5,7 @@ import List, { type ListProps, type ListType, type Status, type RowInfoType } fr
 import ListMenu, { type ListMenuType, type Position, type SelectInfo } from './ListMenu'
 import ListMusicMultiAdd, { type MusicMultiAddModalType as ListAddMultiType } from '@/components/MusicMultiAddModal'
 import ListMusicAdd, { type MusicAddModalType as ListMusicAddType } from '@/components/MusicAddModal'
+import DownloadModal, { type MusicDownloadModalType } from '@/components/MusicDownloadModal'
 import MultipleModeBar, { type MultipleModeBarType, type SelectMode } from './MultipleModeBar'
 import { clearMusicUrl, handleDislikeMusic, handlePlay, handlePlayLater, handleShare, handleShowMusicSourceDetail } from './listAction'
 import { createStyle } from '@/utils/tools'
@@ -40,6 +41,7 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
   const listMusicAddRef = useRef<ListMusicAddType>(null)
   const listMusicMultiAddRef = useRef<ListAddMultiType>(null)
   const listMenuRef = useRef<ListMenuType>(null)
+  const downloadModalRef = useRef<MusicDownloadModalType>(null)
   // const loadingMaskRef = useRef<LoadingMaskType>(null)
 
   useImperativeHandle(ref, () => ({
@@ -107,10 +109,12 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
       </View>
       <ListMusicAdd ref={listMusicAddRef} onAdded={() => { hancelExitSelect() }} />
       <ListMusicMultiAdd ref={listMusicMultiAddRef} onAdded={() => { hancelExitSelect() }} />
+      <DownloadModal ref={downloadModalRef} />
       <ListMenu
         ref={listMenuRef}
         onPlay={info => { handlePlay(info.musicInfo) }}
         onPlayLater={info => { hancelExitSelect(); handlePlayLater(info.musicInfo, info.selectedList, hancelExitSelect) }}
+        onDownload={info => { downloadModalRef.current?.show({ musicInfo: info.musicInfo, selectedList: info.selectedList }) }}
         onCopyName={info => { handleShare(info.musicInfo) }}
         onAdd={handleAddMusic}
         onMusicSourceDetail={info => { void handleShowMusicSourceDetail(info.musicInfo) }}
