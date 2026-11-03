@@ -105,7 +105,16 @@ export default () => {
     if (index < 0) return
     if (flatListRef.current) {
       // console.log('handleScrollToActive', index)
-      if (scrollInfoRef.current && lineRef.current.line - lineRef.current.prevLine == 1) {
+      // 【车机改造】行高必须全部量到才能走增量滚动路径。
+      // 切换翻译/音译会让歌词重解析、行高缓存被清空，而行的文本没变、
+      // 组件复用，onLayout 不会再触发，缓存补不回来——这时 offset 会算成
+      // NaN，scrollTo 抛错被吞，歌词从此不再自动滚动（进入/退出沉浸歌词后必现）。
+      // 缺高度时退回 scrollToIndex：FlatList 能自己处理未测量的行，
+      // 行随滚动重新挂载后高度会重新上报，缓存自愈。
+      const heights = listLayoutInfoRef.current.lineHeights
+      const hasAllHeights = index < heights.length &&
+        heights.slice(0, index + 1).every(h => typeof h == 'number' && h > 0)
+      if (scrollInfoRef.current && hasAllHeights && lineRef.current.line - lineRef.current.prevLine == 1) {
         let offset = listLayoutInfoRef.current.spaceHeight
         for (let line = 0; line < index; line++) {
           offset += listLayoutInfoRef.current.lineHeights[line]
