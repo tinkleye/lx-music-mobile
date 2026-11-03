@@ -125,7 +125,8 @@ export default () => {
   const lineRef = useRef({ line: 0, prevLine: 0 })
   const isFirstSetLrc = useRef(true)
   const scrollInfoRef = useRef<NativeSyntheticEvent<NativeScrollEvent>['nativeEvent'] | null>(null)
-  const listLayoutInfoRef = useRef<{ spaceHeight: number, lineHeights: number[] }>({ spaceHeight: 0, lineHeights: [] })
+  // 【车机改造】lineCount 用于判断歌词是不是真的换了歌（见下方 lyricLines effect）
+  const listLayoutInfoRef = useRef<{ spaceHeight: number, lineHeights: number[], lineCount: number }>({ spaceHeight: 0, lineHeights: [], lineCount: 0 })
   const scrollCancelRef = useRef<(() => void) | null>(null)
   const isShowLyricProgressSetting = useSettingValue('playDetail.isShowLyricProgressSetting')
   // useLock()
@@ -145,16 +146,14 @@ export default () => {
     if (index < 0) return
     if (flatListRef.current) {
       // console.log('handleScrollToActive', index)
-      // 【车机改造】行高必须全部量到才能走增量滚动路径。
-      // 切换翻译/音译会让歌词重解析、行高缓存被清空，而行的文本没变、
-      // 组件复用，onLayout 不会再触发，缓存补不回来——这时 offset 会算成
-      // NaN，scrollTo 抛错被吞，歌词从此不再自动滚动（进入/退出沉浸歌词后必现）。
-      // 缺高度时退回 scrollToIndex：FlatList 能自己处理未测量的行，
-      // 行随滚动重新挂载后高度会重新上报，缓存自愈。
+      // 【车机改造】只要目标行之前的高度都量到了，就一律走增量平滑滚动
+      // （不要求逐句 +1：进出沉浸歌词会重解析歌词、行号会跳变，
+      // 这时 scrollToIndex 在部分设备上不动，增量路径反而是被验证最稳的）。
+      // 缺高度（真的换歌后还没量完）才退回 scrollToIndex。
       const heights = listLayoutInfoRef.current.lineHeights
       const hasAllHeights = index < heights.length &&
         heights.slice(0, index + 1).every(h => typeof h == 'number' && h > 0)
-      if (scrollInfoRef.current && hasAllHeights && lineRef.current.line - lineRef.current.prevLine == 1) {
+      if (scrollInfoRef.current && hasAllHeights) {
         let offset = listLayoutInfoRef.current.spaceHeight
         for (let line = 0; line < index; line++) {
           offset += listLayoutInfoRef.current.lineHeights[line]
@@ -232,7 +231,15 @@ export default () => {
 
   useEffect(() => {
     // linesRef.current = lyricLines
-    listLayoutInfoRef.current.lineHeights = []
+    // 【车机改造】行高缓存只在「真的换了歌」（行数变化）时才清空。
+    // 切换翻译/音译（进入/退出沉浸歌词会临时切换）同样会重解析歌词、
+    // 走到这里，但每行的布局完全没变：如果在这里清空缓存，行组件文本没变、
+    // 会被复用、onLayout 永远不会再触发，缓存就永远补不回来，
+    // 之后的增量滚动算出 NaN，歌词从此停在开头不再跟随（v28 之前的根因）。
+    if (listLayoutInfoRef.current.lineCount !== lyricLines.length) {
+      listLayoutInfoRef.current.lineHeights = []
+      listLayoutInfoRef.current.lineCount = lyricLines.length
+    }
     lineRef.current.prevLine = 0
     lineRef.current.line = 0
     if (!flatListRef.current) return
