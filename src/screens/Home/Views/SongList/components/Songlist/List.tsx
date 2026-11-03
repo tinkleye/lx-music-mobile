@@ -49,6 +49,10 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
   const t = useI18n()
   // console.log('render songlist')
 
+  // 【改造】车机排版只在横屏生效：竖屏（宽 ≤ 高）时回退原始 app 的竖向滚动排版，
+  // 其他页面不受方向影响，歌单的「一屏两行 + 左右翻页」是为横屏车机专门算的。
+  const isLandscape = width > 0 && height > 0 && width > height
+
   useImperativeHandle(ref, () => ({
     setList(list, showSource = false) {
       // rawListRef.current = list
@@ -143,7 +147,7 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
    * 再由屏宽决定放几列。这样两行封面 + 两行标题都保证落在屏幕内。
    */
   const carLayout = useMemo(() => {
-    if (!carMode || !width || !height) return null
+    if (!carMode || !isLandscape || !width || !height) return null
     const gap = scaleSizeW(12)
     // 【优化】左右各留一点空白，别让第一列封面贴着左侧导航栏；
     // 留白算在内容宽度里，所以左右一定等宽，不会出现「左贴边、右空旷」
@@ -160,7 +164,7 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
     const cellWidth = contentWidth / cols
     const cover = Math.min(cellWidth - gap, coverMax)
     return { gap, pad, cellHeight, lineHeight, titleHeight, cols, cellWidth, cover }
-  }, [width, height])
+  }, [width, height, isLandscape])
 
   const carTip = useMemo(() => {
     switch (status) {
@@ -191,8 +195,8 @@ export default forwardRef<ListType, ListProps>(({ onRefresh, onLoadMore, onOpenD
     return list
   }, [currentList, rowInfo])
 
-  // 【车机改造】两行封面 + 左右翻页
-  if (carMode) {
+  // 【车机改造】两行封面 + 左右翻页（仅横屏生效，竖屏回退原始竖向列表）
+  if (carMode && isLandscape) {
     return (
       <View style={styles.container} onLayout={onLayout}>
         {
