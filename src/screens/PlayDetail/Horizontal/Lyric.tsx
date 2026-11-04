@@ -85,8 +85,8 @@ export default () => {
   const lineRef = useRef({ line: 0, prevLine: 0 })
   const isFirstSetLrc = useRef(true)
   const scrollInfoRef = useRef<NativeSyntheticEvent<NativeScrollEvent>['nativeEvent'] | null>(null)
-  // 【车机改造】lineCount 用于判断歌词是不是真的换了歌（见下方 lyricLines effect）
-  const listLayoutInfoRef = useRef<{ spaceHeight: number, lineHeights: number[], lineCount: number }>({ spaceHeight: 0, lineHeights: [], lineCount: 0 })
+  // 【车机改造】lineCount/firstText 用于判断是不是真的换了歌（见下方 lyricLines effect）
+  const listLayoutInfoRef = useRef<{ spaceHeight: number, lineHeights: number[], lineCount: number, firstText: string }>({ spaceHeight: 0, lineHeights: [], lineCount: 0, firstText: '' })
   const scrollCancelRef = useRef<(() => void) | null>(null)
   const isShowLyricProgressSetting = useSettingValue('playDetail.isShowLyricProgressSetting')
   // useLock()
@@ -191,22 +191,30 @@ export default () => {
 
   useEffect(() => {
     // linesRef.current = lyricLines
-    // 【车机改造】行高缓存只在「真的换了歌」（行数变化）时才清空。
+    // 【车机改造】行高缓存只在「真的换了歌」时才清空（行数+首行文本都变了）。
     // 切换翻译/音译（进入/退出沉浸歌词会临时切换）同样会重解析歌词、
     // 走到这里，但每行的布局完全没变：如果在这里清空缓存，行组件文本没变、
     // 会被复用、onLayout 永远不会再触发，缓存就永远补不回来，
     // 之后的增量滚动算出 NaN，歌词从此停在开头不再跟随（v28 之前的根因）。
-    if (listLayoutInfoRef.current.lineCount !== lyricLines.length) {
+    // 同一首歌的重解析还要记住当前播放行，稍后直接滚回去，
+    // 而不是像换歌那样回到开头、等下一句唱了才追上来（v29 的遗留问题）。
+    const sameSong = listLayoutInfoRef.current.lineCount === lyricLines.length &&
+      listLayoutInfoRef.current.firstText === (lyricLines[0]?.text ?? '')
+    if (!sameSong) {
       listLayoutInfoRef.current.lineHeights = []
       listLayoutInfoRef.current.lineCount = lyricLines.length
+      listLayoutInfoRef.current.firstText = lyricLines[0]?.text ?? ''
     }
+    const prevPlayLine = lineRef.current.line
     lineRef.current.prevLine = 0
     lineRef.current.line = 0
     if (!flatListRef.current) return
-    flatListRef.current.scrollToOffset({
-      offset: 0,
-      animated: false,
-    })
+    if (!sameSong) {
+      flatListRef.current.scrollToOffset({
+        offset: 0,
+        animated: false,
+      })
+    }
     if (!lyricLines.length) return
     playLineRef.current?.updateLyricLines(lyricLines)
     requestAnimationFrame(() => {
@@ -219,7 +227,8 @@ export default () => {
       } else {
         if (delayScrollTimeout.current) clearTimeout(delayScrollTimeout.current)
         delayScrollTimeout.current = setTimeout(() => {
-          handleScrollToActive(0)
+          // 同一首歌的重解析：直接回到当前播放行；换歌：回开头
+          handleScrollToActive(sameSong ? prevPlayLine : 0)
         }, 100)
       }
     })
