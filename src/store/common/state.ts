@@ -17,7 +17,7 @@ const state: InitState = {
   fontSize: global.lx.fontSize,
   statusbarHeight: 0,
   componentIds: {},
-  navActiveId: 'nav_search',
+  navActiveId: 'nav_drive',
   lastNavActiveId: 'nav_search',
   sourceNames: initData as InitState['sourceNames'],
   bgPic: null,

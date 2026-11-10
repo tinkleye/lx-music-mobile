@@ -5,6 +5,7 @@ import Mylist from '../Views/Mylist'
 import Leaderboard from '../Views/Leaderboard'
 import Setting from '../Views/Setting'
 import LocalMusic from '../Views/LocalMusic'
+import DriveHome from '../Views/DriveHome'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 
 
@@ -25,6 +26,7 @@ const Main = () => {
 
   const component = useMemo(() => {
     switch (id) {
+      case 'nav_drive': return <DriveHome />
       case 'nav_songlist': return <SongList />
       case 'nav_top': return <Leaderboard />
       case 'nav_love': return <Mylist />

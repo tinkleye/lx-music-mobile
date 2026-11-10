@@ -14,7 +14,7 @@ import {
 } from './utils'
 import { getLocalFilePath } from '@/utils/music'
 import { readLyric, readPic } from '@/utils/localMediaMetadata'
-import { stat } from '@/utils/fs'
+import { stat, existsFile, readFile } from '@/utils/fs'
 
 const getOtherSourceByLocal = async<T>(musicInfo: LX.Music.MusicInfoLocal, handler: (infos: LX.Music.MusicInfoOnline[]) => Promise<T>) => {
   let result: LX.Music.MusicInfoOnline[] = []
@@ -184,6 +184,16 @@ export const parseLyric = (lrc: string): LX.Music.LyricInfo => {
 }
 
 const getMusicFileLyric = async(filePath: string) => {
+  // 【车机改造】优先读取同目录同名 .lrc 文件（纯文本/带时间戳均可）
+  const dotIndex = filePath.lastIndexOf('.')
+  if (dotIndex > 0) {
+    const lrcPath = filePath.substring(0, dotIndex) + '.lrc'
+    if (await existsFile(lrcPath).catch(() => false)) {
+      const lrcContent = await readFile(lrcPath, 'utf8').catch(() => null)
+      if (lrcContent?.trim()) return parseLyric(lrcContent)
+    }
+  }
+  // 其次读取音频文件内嵌歌词
   const lyric = await readLyric(filePath).catch(() => null)
   if (!lyric) return null
   return parseLyric(lyric)

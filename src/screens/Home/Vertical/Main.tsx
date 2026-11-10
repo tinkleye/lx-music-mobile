@@ -18,13 +18,13 @@ const hideKeys = [
 ] as Readonly<Array<keyof LX.AppSetting>>
 
 const SearchPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_search')
+  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_search' || commonState.navActiveId == 'nav_drive')
   const component = useMemo(() => <Search />, [])
   useEffect(() => {
     let currentId: CommonState['navActiveId'] = commonState.navActiveId
     const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
       currentId = id
-      if (id == 'nav_search') {
+      if (id == 'nav_search' || id == 'nav_drive') {
         requestAnimationFrame(() => {
           setVisible(true)
         })
