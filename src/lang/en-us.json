@@ -607,6 +607,7 @@
   "download_permission_fallback": "No storage permission, saving to the app private folder",
   "download_retry": "Choose again",
   "download_close": "Done",
+  "nav_drive": "Drive",
   "nav_local": "Local",
   "local_music_title": "Local Music",
   "local_music_list_name": "Local Music",

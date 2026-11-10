@@ -64,9 +64,11 @@ void Promise.all([getFontSize(), getCarMode(), getCarUIScale(), windowSizeTools.
     await navigations.pushHomeScreen().then(() => {
       void handlePushedHomeScreen()
     }).catch((err: any) => {
+      // 【车机改造】弹窗附带堆栈前几行，便于远程排障（被 metro 吞错时尤其关键）
+      const stackHead = String(err.stack ?? '').split('\n').slice(0, 6).join('\n')
       void tipDialog({
         title: 'Error',
-        message: err.message,
+        message: `${err.message}\n\n${stackHead}`,
         btnText: 'Exit',
         bgClose: false,
       }).then(() => {

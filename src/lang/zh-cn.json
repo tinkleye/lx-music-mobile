@@ -607,6 +607,7 @@
   "download_permission_fallback": "没有存储权限，将保存到 App 私有目录",
   "download_retry": "重新选择",
   "download_close": "完成",
+  "nav_drive": "驾驶",
   "nav_local": "本地音乐",
   "local_music_title": "本地音乐",
   "local_music_list_name": "本地音乐",

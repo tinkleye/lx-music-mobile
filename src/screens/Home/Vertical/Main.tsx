@@ -5,6 +5,8 @@ import SongList from '../Views/SongList'
 import Mylist from '../Views/Mylist'
 import Leaderboard from '../Views/Leaderboard'
 import Setting from '../Views/Setting'
+import LocalMusic from '../Views/LocalMusic'
+import DriveHome from '../Views/DriveHome'
 import commonState, { type InitState as CommonState } from '@/store/common/state'
 import { createStyle } from '@/utils/tools'
 import PagerView, { type PageScrollStateChangedNativeEvent, type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
@@ -17,14 +19,33 @@ const hideKeys = [
   'theme.fontShadow',
 ] as Readonly<Array<keyof LX.AppSetting>>
 
+const DriveHomePage = () => {
+  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_drive')
+  const component = useMemo(() => <DriveHome />, [])
+  useEffect(() => {
+    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
+      if (id == 'nav_drive') {
+        requestAnimationFrame(() => {
+          setVisible(true)
+        })
+      }
+    }
+    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
+    return () => {
+      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
+    }
+  }, [])
+  return visible ? component : null
+}
+
 const SearchPage = () => {
-  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_search' || commonState.navActiveId == 'nav_drive')
+  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_search')
   const component = useMemo(() => <Search />, [])
   useEffect(() => {
     let currentId: CommonState['navActiveId'] = commonState.navActiveId
     const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
       currentId = id
-      if (id == 'nav_search' || id == 'nav_drive') {
+      if (id == 'nav_search') {
         requestAnimationFrame(() => {
           setVisible(true)
         })
@@ -178,18 +199,41 @@ const SettingPage = () => {
   return visible ? component : null
 }
 
+const LocalMusicPage = () => {
+  const [visible, setVisible] = useState(commonState.navActiveId == 'nav_local')
+  const component = useMemo(() => <LocalMusic />, [])
+  useEffect(() => {
+    const handleNavIdUpdate = (id: CommonState['navActiveId']) => {
+      if (id == 'nav_local') {
+        requestAnimationFrame(() => {
+          setVisible(true)
+        })
+      }
+    }
+    global.state_event.on('navActiveIdUpdated', handleNavIdUpdate)
+    return () => {
+      global.state_event.off('navActiveIdUpdated', handleNavIdUpdate)
+    }
+  }, [])
+  return visible ? component : null
+}
+
 const viewMap = {
-  nav_search: 0,
-  nav_songlist: 1,
-  nav_top: 2,
-  nav_love: 3,
-  nav_setting: 4,
+  nav_drive: 0,
+  nav_search: 1,
+  nav_songlist: 2,
+  nav_top: 3,
+  nav_love: 4,
+  nav_local: 5,
+  nav_setting: 6,
 }
 const indexMap = [
+  'nav_drive',
   'nav_search',
   'nav_songlist',
   'nav_top',
   'nav_love',
+  'nav_local',
   'nav_setting',
 ] as const
 
@@ -274,6 +318,9 @@ const Main = () => {
       scrollEnabled={settingState.setting['common.homePageScroll']}
       style={styles.pagerView}
     >
+      <View collapsable={false} key="nav_drive" style={styles.pageStyle}>
+        <DriveHomePage />
+      </View>
       <View collapsable={false} key="nav_search" style={styles.pageStyle}>
         <SearchPage />
       </View>
@@ -285,6 +332,9 @@ const Main = () => {
       </View>
       <View collapsable={false} key="nav_love" style={styles.pageStyle}>
         <MylistPage />
+      </View>
+      <View collapsable={false} key="nav_local" style={styles.pageStyle}>
+        <LocalMusicPage />
       </View>
       <View collapsable={false} key="nav_setting" style={styles.pageStyle}>
         <SettingPage />
