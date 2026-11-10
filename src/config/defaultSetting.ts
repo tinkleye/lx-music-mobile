@@ -1,6 +1,7 @@
 const defaultSetting: LX.AppSetting = {
   version: '2.1',
   'common.isAutoTheme': false,
+  'common.themeMode': 'dark',
   'common.langId': null,
   'common.apiSource': '',
   'common.sourceNameType': 'alias',
@@ -24,6 +25,7 @@ const defaultSetting: LX.AppSetting = {
   'player.isSavePlayTime': false,
   'player.volume': 1,
   'player.playbackRate': 1,
+  'player.eqPreset': 'off',
   'player.cacheSize': '1024',
   'player.timeoutExit': '',
   'player.timeoutExitPlayed': true,
@@ -75,7 +77,7 @@ const defaultSetting: LX.AppSetting = {
   'sync.enable': false,
 
   // 'theme.id': 'blue_plus',
-  'theme.id': 'green',
+  'theme.id': 'black',
   'theme.lightId': 'green',
   'theme.darkId': 'black',
   'theme.hideBgDark': false,

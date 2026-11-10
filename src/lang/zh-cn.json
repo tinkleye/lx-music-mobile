@@ -615,5 +615,15 @@
   "local_music_scan_done": "新增 {added} 首，移除失效 {removed} 首",
   "local_music_scan_none": "没有发现新的本地音乐",
   "local_music_scan_fail": "扫描失败，请检查存储权限与 U 盘挂载",
-  "local_music_permission": "需要存储权限才能扫描本地音乐"
+  "local_music_permission": "需要存储权限才能扫描本地音乐",
+  "theme_mode_dark": "深色主题（默认）",
+  "theme_mode_light": "浅色主题",
+  "theme_mode_auto": "跟随系统",
+  "setting_player_eq": "均衡器",
+  "setting_player_eq_off": "关闭",
+  "setting_player_eq_pop": "流行",
+  "setting_player_eq_rock": "摇滚",
+  "setting_player_eq_vocal": "人声",
+  "setting_player_eq_classical": "古典",
+  "setting_player_eq_bass": "重低音"
 }

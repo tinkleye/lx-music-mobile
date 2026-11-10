@@ -12,6 +12,11 @@ declare global {
       'common.isAutoTheme': boolean
 
       /**
+       * 【车机改造】主题模式：深色（默认）/ 浅色 / 跟随系统
+       */
+      'common.themeMode': 'dark' | 'light' | 'auto'
+
+      /**
        * 语言id
        */
       'common.langId': I18n['locale'] | null
@@ -145,6 +150,11 @@ declare global {
        * 播放速率
        */
       'player.playbackRate': number
+
+      /**
+       * 【车机改造】均衡器预设
+       */
+      'player.eqPreset': 'off' | 'pop' | 'rock' | 'vocal' | 'classical' | 'bass'
 
       /**
        * 缓存大小设置 unit MiB

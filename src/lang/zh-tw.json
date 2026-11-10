@@ -615,5 +615,15 @@
   "local_music_scan_done": "新增 {added} 首，移除失效 {removed} 首",
   "local_music_scan_none": "沒有發現新的本地音樂",
   "local_music_scan_fail": "掃描失敗，請檢查儲存權限與 USB 掛載",
-  "local_music_permission": "需要儲存權限才能掃描本地音樂"
+  "local_music_permission": "需要儲存權限才能掃描本地音樂",
+  "theme_mode_dark": "深色主題（默認）",
+  "theme_mode_light": "淺色主題",
+  "theme_mode_auto": "跟隨系統",
+  "setting_player_eq": "均衡器",
+  "setting_player_eq_off": "關閉",
+  "setting_player_eq_pop": "流行",
+  "setting_player_eq_rock": "搖滾",
+  "setting_player_eq_vocal": "人聲",
+  "setting_player_eq_classical": "古典",
+  "setting_player_eq_bass": "重低音"
 }

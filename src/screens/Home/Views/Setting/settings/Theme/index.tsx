@@ -2,6 +2,7 @@ import { memo } from 'react'
 
 // import Section from '../../components/Section'
 import Theme from './Theme'
+import ThemeMode from './ThemeMode'
 import IsAutoTheme from './IsAutoTheme'
 import IsHideBgDark from './IsHideBgDark'
 import IsDynamicBg from './IsDynamicBg'
@@ -12,6 +13,7 @@ export default memo(() => {
   return (
     <>
       <Theme />
+      <ThemeMode />
       <IsAutoTheme />
       <IsHideBgDark />
       <IsDynamicBg />
