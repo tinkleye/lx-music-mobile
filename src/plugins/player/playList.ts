@@ -3,6 +3,7 @@ import BackgroundTimer from 'react-native-background-timer'
 import { defaultUrl } from '@/config'
 // import { action as playerAction } from '@/store/modules/player'
 import settingState from '@/store/setting/state'
+import { sanitizeLyricForMediaSession } from '@/utils/music'
 import playerState from '@/store/player/state'
 
 
@@ -33,9 +34,11 @@ const formatMusicInfo = (musicInfo: LX.Player.PlayMusic) => {
 }
 
 const getCurrentFullLyric = (targetId: string | null) => {
+  // 【车机改造】媒体会话的 LYRICS 元数据会被车机媒体卡片/仪表盘原样显示，
+  // 必须先剥掉时间戳等标签再发送
   return (settingState.setting['player.isShowBluetoothFullLyric'] && targetId &&
       playerState.musicInfo.id == targetId && playerState.musicInfo.lrc)
-    ? playerState.musicInfo.lrc
+    ? sanitizeLyricForMediaSession(playerState.musicInfo.lrc)
     : undefined
 }
 

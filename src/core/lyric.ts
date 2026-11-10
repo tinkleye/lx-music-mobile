@@ -19,6 +19,7 @@ import { getPosition } from '@/plugins/player'
 import playerState from '@/store/player/state'
 import settingState from '@/store/setting/state'
 import { updateNowPlayingTitles } from '@/plugins/player/utils'
+import { sanitizeLyricForMediaSession } from '@/utils/music'
 
 /**
  * init lyric
@@ -37,7 +38,7 @@ const handleSetLyric = async(lyric: string, translation = '', romalrc = '') => {
   await setDesktopLyric(lyric, translation, romalrc)
   if (settingState.setting['player.isShowBluetoothFullLyric']) {
     void updateNowPlayingTitles({
-      lyric,
+      lyric: sanitizeLyricForMediaSession(lyric),
     })
   }
 }

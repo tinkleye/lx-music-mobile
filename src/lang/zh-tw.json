@@ -606,5 +606,14 @@
   "download_no_permission": "沒有儲存權限，無法儲存到本機",
   "download_permission_fallback": "沒有儲存權限，將儲存到 App 私有目錄",
   "download_retry": "重新選擇",
-  "download_close": "完成"
+  "download_close": "完成",
+  "nav_local": "本地音樂",
+  "local_music_title": "本地音樂",
+  "local_music_list_name": "本地音樂",
+  "local_music_scan": "掃描",
+  "local_music_scanning": "掃描中…",
+  "local_music_scan_done": "新增 {added} 首，移除失效 {removed} 首",
+  "local_music_scan_none": "沒有發現新的本地音樂",
+  "local_music_scan_fail": "掃描失敗，請檢查儲存權限與 USB 掛載",
+  "local_music_permission": "需要儲存權限才能掃描本地音樂"
 }

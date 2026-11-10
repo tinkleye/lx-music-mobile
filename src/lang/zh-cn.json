@@ -606,5 +606,14 @@
   "download_no_permission": "没有存储权限，无法保存到本机",
   "download_permission_fallback": "没有存储权限，将保存到 App 私有目录",
   "download_retry": "重新选择",
-  "download_close": "完成"
+  "download_close": "完成",
+  "nav_local": "本地音乐",
+  "local_music_title": "本地音乐",
+  "local_music_list_name": "本地音乐",
+  "local_music_scan": "扫描",
+  "local_music_scanning": "扫描中…",
+  "local_music_scan_done": "新增 {added} 首，移除失效 {removed} 首",
+  "local_music_scan_none": "没有发现新的本地音乐",
+  "local_music_scan_fail": "扫描失败，请检查存储权限与 U 盘挂载",
+  "local_music_permission": "需要存储权限才能扫描本地音乐"
 }

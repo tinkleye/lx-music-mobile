@@ -606,5 +606,14 @@
   "download_no_permission": "Storage permission is required to save files",
   "download_permission_fallback": "No storage permission, saving to the app private folder",
   "download_retry": "Choose again",
-  "download_close": "Done"
+  "download_close": "Done",
+  "nav_local": "Local",
+  "local_music_title": "Local Music",
+  "local_music_list_name": "Local Music",
+  "local_music_scan": "Scan",
+  "local_music_scanning": "Scanning…",
+  "local_music_scan_done": "Added {added}, removed {removed}",
+  "local_music_scan_none": "No new local music found",
+  "local_music_scan_fail": "Scan failed. Check storage permission & USB mount",
+  "local_music_permission": "Storage permission is required to scan local music"
 }
