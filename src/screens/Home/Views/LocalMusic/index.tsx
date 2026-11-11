@@ -12,6 +12,7 @@ import { View, TouchableOpacity, useWindowDimensions } from 'react-native'
 // 注意：createStyle 等工具函数必须显式导入（v31 崩溃教训）
 import { useI18n } from '@/lang'
 import { Icon } from '@/components/common/Icon'
+import IconIon from '@/components/common/IconIon'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import { createStyle, toast, getRowInfo } from '@/utils/tools'
@@ -24,11 +25,19 @@ import MusicList from '../Mylist/MusicList'
 import GroupView, { type GroupBy } from './GroupView'
 import FolderPickerModal from './FolderPickerModal'
 
-const VIEW_TABS: { id: 'songs' | GroupBy, labelKey: string }[] = [
-  { id: 'songs', labelKey: 'local_music_view_songs' },
-  { id: 'album', labelKey: 'local_music_view_album' },
-  { id: 'singer', labelKey: 'local_music_view_singer' },
-  { id: 'folder', labelKey: 'local_music_view_folder' },
+// 【v38】横屏控制栏上下分组：视图入口组贴顶、扫描操作组贴底，中间弹性留白；
+// 视图入口配图标（歌曲=musical-notes 音符[Ionicons]、专辑=album 唱片、
+// 歌手=leaderboard、文件夹=sd-card）；竖屏 tab 行同步图标。
+// 分组头/歌曲行的视觉统一在 GroupView 内实现。
+// 图标名用字面量类型（Icon 组件 name 是字面量联合，string 会在 tsc 报错）
+type TabIcon =
+  | { set: 'app', name: 'album' | 'leaderboard' | 'sd-card' }
+  | { set: 'ion', name: 'musical-notes' }
+const VIEW_TABS: { id: 'songs' | GroupBy, labelKey: string, icon: TabIcon | null }[] = [
+  { id: 'songs', labelKey: 'local_music_view_songs', icon: { set: 'ion', name: 'musical-notes' } },
+  { id: 'album', labelKey: 'local_music_view_album', icon: { set: 'app', name: 'album' } },
+  { id: 'singer', labelKey: 'local_music_view_singer', icon: { set: 'app', name: 'leaderboard' } },
+  { id: 'folder', labelKey: 'local_music_view_folder', icon: { set: 'app', name: 'sd-card' } },
 ]
 
 export default () => {
@@ -109,7 +118,15 @@ export default () => {
     )
   }
 
-  // 竖屏视图入口（顶部一行）
+  // 【v38】视图入口图标（app 字体集 / Ionicons 补充集），激活态用主题色
+  const renderTabIcon = (icon: TabIcon, active: boolean, size: number) => {
+    const color = active ? theme['c-primary'] : theme['c-font-label']
+    return icon.set == 'ion'
+      ? <IconIon name={icon.name} size={size} color={color} />
+      : <Icon name={icon.name} size={size} color={color} />
+  }
+
+  // 竖屏视图入口（顶部一行，【v38】同步图标：歌曲配音符，其余配图标）
   const renderPortraitTabs = () => (
     VIEW_TABS.map(tab => (
       <TouchableOpacity
@@ -120,14 +137,17 @@ export default () => {
         ]}
         onPress={() => { setViewMode(tab.id) }}
       >
-        <Text numberOfLines={1} style={{ ...styles.tabText, color: viewMode == tab.id ? theme['c-primary'] : theme['c-font'] }}>
-          {t(tab.labelKey)}
-        </Text>
+        <View style={styles.tabInner}>
+          {tab.icon ? renderTabIcon(tab.icon, viewMode == tab.id, 14) : null}
+          <Text numberOfLines={1} style={{ ...styles.tabText, color: viewMode == tab.id ? theme['c-primary'] : theme['c-font'] }}>
+            {t(tab.labelKey)}
+          </Text>
+        </View>
       </TouchableOpacity>
     ))
   )
 
-  // 横屏左侧控制栏的视图入口（纵向排列，左侧竖线高亮）
+  // 横屏左侧控制栏的视图入口组（纵向排列，左侧竖线高亮，【v38】配图标）
   const renderLandscapeTabs = () => (
     VIEW_TABS.map(tab => (
       <TouchableOpacity
@@ -138,6 +158,7 @@ export default () => {
         ]}
         onPress={() => { setViewMode(tab.id) }}
       >
+        {tab.icon ? renderTabIcon(tab.icon, viewMode == tab.id, 16) : null}
         <Text numberOfLines={1} style={{ ...styles.sideText, color: viewMode == tab.id ? theme['c-primary'] : theme['c-font'] }}>
           {t(tab.labelKey)}
         </Text>
@@ -150,11 +171,12 @@ export default () => {
       {
         isLandscape
           ? (
-              // 【v37】横屏：左侧控制栏（4 个视图入口 + 扫描范围 + 扫描）+ 右侧翻页列表
+              // 【v37】横屏：左侧控制栏 + 右侧翻页列表。
+              // 【v38】上下两组：视图入口组贴顶、扫描操作组贴底，中间弹性留白隔开
               <View style={styles.landRow}>
                 <View style={{ ...styles.sideCol, borderRightColor: theme['c-border'] }}>
                   {renderLandscapeTabs()}
-                  <View style={{ ...styles.sideDivider, backgroundColor: theme['c-border'] }} />
+                  <View style={styles.sideGap} />
                   <TouchableOpacity style={styles.sideItem} onPress={() => { setShowFolderPicker(true) }}>
                     <Icon name="add_folder" size={16} color={theme['c-primary']} />
                     <Text numberOfLines={1} style={{ ...styles.sideText, color: theme['c-primary'] }}>
@@ -227,6 +249,11 @@ const styles = createStyle({
     borderBottomColor: 'transparent',
   },
   tabActive: {},
+  tabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   tabText: {
     fontSize: 13,
   },
@@ -266,9 +293,9 @@ const styles = createStyle({
     fontSize: 13,
     flex: 1,
   },
-  sideDivider: {
-    height: BorderWidths.normal,
-    marginVertical: 6,
+  // 【v38】视图组与扫描组之间的弹性留白
+  sideGap: {
+    flex: 1,
   },
   landContent: {
     flex: 1,
