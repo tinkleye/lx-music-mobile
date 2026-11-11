@@ -133,6 +133,12 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
           if (cursor != null) cursor.close();
         }
       }
+      promise.resolve(result);
+    } catch (Exception err) {
+      promise.reject("SCAN_ERROR", err);
+    }
+  }
+
   /**
    * 【v34】列出所有「扫到疑似音乐」的文件夹（与 scanAudio 相同的过滤条件聚合去重）。
    * 返回: [{path, count}]，path 为父目录绝对路径，count 为该目录下的音乐文件数。
