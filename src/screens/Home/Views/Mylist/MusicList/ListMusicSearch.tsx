@@ -14,6 +14,8 @@ import listState from '@/store/list/state'
 type SearchTipListProps = _SearchTipListProps<LX.Music.MusicInfo>
 interface ListMusicSearchProps {
   onScrollToInfo: (info: LX.Music.MusicInfo) => void
+  // 【车机改造】固定列表 ID：传入后只搜索该列表
+  listId?: string
 }
 export const ITEM_HEIGHT = scaleSizeH(46)
 
@@ -28,17 +30,18 @@ export const debounceSearchList = debounce((text: string, list: LX.List.ListMusi
 }, 200)
 
 
-export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScrollToInfo }, ref) => {
+export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScrollToInfo, listId }, ref) => {
   const searchTipListRef = useRef<SearchTipListType<LX.Music.MusicInfo>>(null)
   const [visible, setVisible] = useState(false)
   const currentListIdRef = useRef('')
   const currentKeywordRef = useRef('')
+  const listIdRef = useRef(listId)
   const theme = useTheme()
 
   const handleShowList = (keyword: string, height: number) => {
     searchTipListRef.current?.setHeight(height)
     currentKeywordRef.current = keyword
-    const id = currentListIdRef.current = listState.activeListId
+    const id = currentListIdRef.current = listIdRef.current ?? listState.activeListId
     if (keyword) {
       void getListMusics(id).then(list => {
         debounceSearchList(keyword, list, (list) => {
@@ -72,7 +75,7 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
     const updateList = (id: string) => {
       currentListIdRef.current = id
       if (!currentKeywordRef.current) return
-      void getListMusics(listState.activeListId).then(list => {
+      void getListMusics(id).then(list => {
         debounceSearchList(currentKeywordRef.current, list, (list) => {
           if (currentListIdRef.current != id) return
           searchTipListRef.current?.setList(list)
@@ -80,15 +83,21 @@ export default forwardRef<ListMusicSearchType, ListMusicSearchProps>(({ onScroll
       })
     }
     const handleChange = (ids: string[]) => {
-      if (!ids.includes(listState.activeListId)) return
-      updateList(listState.activeListId)
+      const id = listIdRef.current ?? listState.activeListId
+      if (!ids.includes(id)) return
+      updateList(id)
     }
 
-    global.state_event.on('mylistToggled', updateList)
+    // 固定列表模式不订阅 mylistToggled
+    if (typeof listIdRef.current != 'string') {
+      global.state_event.on('mylistToggled', updateList)
+    }
     global.app_event.on('myListMusicUpdate', handleChange)
 
     return () => {
-      global.state_event.off('mylistToggled', updateList)
+      if (typeof listIdRef.current != 'string') {
+        global.state_event.off('mylistToggled', updateList)
+      }
       global.app_event.off('myListMusicUpdate', handleChange)
     }
   }, [])

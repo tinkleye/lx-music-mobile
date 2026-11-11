@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { View, TouchableOpacity } from 'react-native'
 import { useI18n } from '@/lang'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
-import listAction from '@/store/list/action'
 import { useTheme } from '@/store/theme/hook'
 import { createStyle } from '@/utils/tools'
 import { toast } from '@/utils/tools'
@@ -11,15 +10,11 @@ import { BorderWidths } from '@/theme'
 import { LOCAL_LIST_ID, scanLocalMusic, type ScanResult } from '@/core/music/localLibrary'
 import MusicList from '../Mylist/MusicList'
 
-// 【车机改造】本地音乐视图：复用 Mylist 的歌曲列表组件，固定指向「本地音乐」列表
+// 【车机改造】本地音乐视图：固定显示「本地音乐」列表（listId 锁定，与我的列表互不干扰）
 export default () => {
   const t = useI18n()
   const theme = useTheme()
   const [isScanning, setIsScanning] = useState(false)
-
-  useEffect(() => {
-    listAction.setActiveList(LOCAL_LIST_ID)
-  }, [])
 
   const handleScan = useCallback(async() => {
     if (isScanning) return
@@ -51,7 +46,7 @@ export default () => {
           </Text>
         </TouchableOpacity>
       </View>
-      <MusicList />
+      <MusicList listId={LOCAL_LIST_ID} />
     </View>
   )
 }

@@ -5,6 +5,7 @@ import settingState from '@/store/setting/state'
 import themeState from '@/store/theme/state'
 import { isUrl } from '@/utils'
 import { privateStorageDirectoryPath } from '@/utils/fs'
+import { isCarModeEnabled } from '@/config/carMode'
 import { type ImageSourcePropType } from 'react-native'
 
 export const BG_IMAGES = {
@@ -111,12 +112,19 @@ export const buildActiveThemeColors = (theme: LX.Theme): LX.ActiveTheme => {
 export const getTheme = async() => {
   // fs.promises.readdir()
   const shouldUseDarkColors = themeState.shouldUseDarkColors
-  // let themeId = settingState.setting['theme.id'] == 'auto'
-  //   ? shouldUseDarkColors
-  //     ? settingState.setting['theme.darkId']
-  //     : settingState.setting['theme.lightId']
-  //   // : 'china_ink'
-  //   : settingState.setting['theme.id']
+
+  // 【车机改造】车机模式：使用专属车机主题（deep 黑/浅白 + 跟随系统三选），
+  // 不再读取 theme.id / common.isAutoTheme，两套配置互不干扰
+  if (isCarModeEnabled()) {
+    const mode = settingState.setting['common.themeMode'] ?? 'dark'
+    let themeId = mode == 'auto'
+      ? (shouldUseDarkColors ? 'car_dark' : 'car_light')
+      : mode == 'light' ? 'car_light' : 'car_dark'
+    let carTheme: LocalTheme | LX.Theme | undefined = themes.find(theme => theme.id == themeId)
+    if (!carTheme) carTheme = themes.find(theme => theme.id == 'car_dark') as LX.Theme
+    return carTheme
+  }
+
   let themeId = settingState.setting['common.isAutoTheme'] && shouldUseDarkColors
     ? 'black'
     : settingState.setting['theme.id']

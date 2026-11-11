@@ -18,7 +18,10 @@ import MetadataEditModal, { type MetadataEditType, type MetadataEditProps } from
 import MusicToggleModal, { type MusicToggleModalType } from './MusicToggleModal'
 
 
-export default () => {
+export default ({ listId }: { listId?: string } = {}) => {
+  // 【车机改造】固定列表模式：传入 listId 后，本组件只显示该列表（如本地音乐），
+  // 隐藏列表切换栏，所有操作锁定该列表，与全局 activeListId 完全解耦
+  const isFixedList = typeof listId == 'string'
   // const t = useI18n()
   const activeListRef = useRef<ActiveListType>(null)
   const listMusicSearchRef = useRef<ListMusicSearchType>(null)
@@ -67,11 +70,11 @@ export default () => {
     listMenuRef.current?.show({
       musicInfo,
       index,
-      listId: listState.activeListId,
+      listId: listId ?? listState.activeListId,
       single: false,
       selectedList: listRef.current!.getSelectedList(),
     }, position)
-  }, [])
+  }, [listId])
   const handleShowSearch = useCallback(() => {
     isShowSearchBarModeBar.current = true
     if (isShowMultipleModeBar.current) {
@@ -133,7 +136,9 @@ export default () => {
   return (
     <View style={styles.container}>
       <View style={{ zIndex: 2 }}>
-        <ActiveList ref={activeListRef} onShowSearchBar={handleShowSearch} onScrollToTop={hancelScrollToTop} />
+        {isFixedList ? null : (
+          <ActiveList ref={activeListRef} onShowSearchBar={handleShowSearch} onScrollToTop={hancelScrollToTop} />
+        )}
         <MultipleModeBar
           ref={multipleModeBarRef}
           onSwitchMode={hancelSwitchSelectMode}
@@ -149,12 +154,14 @@ export default () => {
       <View style={{ flex: 1 }} onLayout={onLayout}>
         <List
           ref={listRef}
+          listId={listId}
           onShowMenu={showMenu}
           onMuiltSelectMode={hancelMultiSelect}
           onSelectAll={isAll => multipleModeBarRef.current?.setIsSelectAll(isAll)}
         />
         <ListMusicSearch
           ref={listMusicSearchRef}
+          listId={listId}
           onScrollToInfo={handleScrollToInfo}
         />
       </View>

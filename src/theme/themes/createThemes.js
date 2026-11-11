@@ -295,6 +295,46 @@ const defaultThemes = [
       'c-badge-tertiary': 'var(c-primary-light-100)',
     },
   },
+  {
+    // 【车机改造】车机夜间主题：纯黑 OLED 底（熄灭的像素不发光，防眩光），
+    // 琥珀金点缀（暖色高辨识度，夜间瞳孔放大时冷蓝光更刺眼，暖色更舒适），无背景图（省 GPU/内存）
+    id: 'car_dark',
+    name: '车机夜行',
+    isDark: true,
+    config: {
+      primary: 'rgb(255, 196, 87)',
+      font: 'rgb(255, 255, 255)',
+      'c-app-background': 'rgba(0, 0, 0, 1)',
+      'c-main-background': 'rgba(21, 21, 21, 1)',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      'c-badge-primary': 'var(c-primary)',
+      'c-badge-secondary': 'var(c-primary-light-100)',
+      'c-badge-tertiary': 'var(c-primary-light-100)',
+    },
+  },
+  {
+    // 【车机改造】车机日间主题：米白底 + 深蓝点缀（阳光直射下深色文字对比度最高），
+    // 避免纯白刺眼与低对比灰字
+    id: 'car_light',
+    name: '车机日辉',
+    isDark: false,
+    config: {
+      primary: 'rgb(23, 105, 209)',
+      font: 'rgb(17, 17, 17)',
+      'c-app-background': 'rgba(244, 245, 247, 1)',
+      'c-main-background': 'rgba(255, 255, 255, 1)',
+      'bg-image': '',
+      'bg-image-position': 'center',
+      'bg-image-size': 'cover',
+
+      'c-badge-primary': 'var(c-primary)',
+      'c-badge-secondary': 'var(c-primary-dark-100)',
+      'c-badge-tertiary': 'var(c-primary-dark-100)',
+    },
+  },
 ]
 
 const themes = defaultThemes.map(({ config: { primary, font, ...extInfo }, ...themeInfo }) => {

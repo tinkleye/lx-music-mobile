@@ -29,6 +29,8 @@ export interface ListProps {
   onShowMenu: (musicInfo: LX.Music.MusicInfo, index: number, position: Position) => void
   onMuiltSelectMode: () => void
   onSelectAll: (isAll: boolean) => void
+  // 【车机改造】固定列表 ID：传入后本组件只显示该列表（如本地音乐），不再跟随全局 activeListId
+  listId?: string
 }
 export interface ListType {
   setIsMultiSelectMode: (isMultiSelectMode: boolean) => void
@@ -39,20 +41,20 @@ export interface ListType {
   scrollToTop: () => void
 }
 
-const usePlayIndex = () => {
+const usePlayIndex = (listId?: string) => {
   const activeListId = useActiveListId()
   const playMusicInfo = usePlayMusicInfo()
   const playInfo = usePlayInfo()
 
   const playIndex = useMemo(() => {
-    return playMusicInfo.listId == activeListId ? playInfo.playIndex : -1
-  }, [activeListId, playInfo.playIndex, playMusicInfo.listId])
+    return playMusicInfo.listId == (listId ?? activeListId) ? playInfo.playIndex : -1
+  }, [listId, activeListId, playInfo.playIndex, playMusicInfo.listId])
 
   return playIndex
 }
 
 
-const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, onSelectAll }, ref) => {
+const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, onSelectAll, listId }, ref) => {
   // const t = useI18n()
   const t = useI18n()
   const theme = useTheme()
@@ -66,6 +68,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const [selectedList, setSelectedList] = useState<LX.List.ListMusics>([])
   const selectedListRef = useRef<LX.List.ListMusics>([])
   const currentListIdRef = useRef('')
+  const propsListIdRef = useRef(listId) // 【车机改造】固定列表 ID 快照（组件不重挂载时保持不变）
   const waitJumpListPositionRef = useRef(false)
   const rowInfo = useRef(getRowInfo())
   const isShowAlbumName = useSettingValue('list.isShowAlbumName')
@@ -97,7 +100,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       return selectedListRef.current
     },
     scrollToInfo(info) {
-      void getListMusics(listState.activeListId).then((list) => {
+      void getListMusics(listId ?? listState.activeListId).then((list) => {
         const index = list.findIndex(m => m.id == info.id)
         if (index < 0) return
         if (carMode) {
@@ -159,8 +162,8 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       })
     }
     const handleChange = (ids: string[]) => {
-      if (!ids.includes(listState.activeListId)) return
-      const id = listState.activeListId
+      const id = listId ?? listState.activeListId
+      if (!ids.includes(id)) return
       void getListMusics(id).then((list) => {
         if (currentListIdRef.current != id) return
         selectedListRef.current = []
@@ -173,6 +176,19 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       requestAnimationFrame(() => {
         const listId = playerState.playMusicInfo.listId
         if (!listId) return
+        // 【车机改造】固定列表模式下：只滚动到本列表内正在播放的歌曲，绝不切换全局激活列表
+        if (typeof propsListIdRef.current == 'string') {
+          if (listId == propsListIdRef.current && playerState.playInfo.playIndex > -1) {
+            if (carMode) {
+              pagedRef.current?.scrollToIndex(playerState.playInfo.playIndex, true)
+              return
+            }
+            try {
+              flatListRef.current?.scrollToIndex({ index: Math.floor(playerState.playInfo.playIndex / (rowInfo.current.rowNum ?? 1)), viewPosition: 0.3, animated: true })
+            } catch {}
+          }
+          return
+        }
         if (listId != listState.activeListId) {
           setActiveList(listId)
           if (currentListIdRef.current != listId) waitJumpListPositionRef.current = true
@@ -190,7 +206,10 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
         }
       })
     }
-    if (global.lx.jumpMyListPosition) {
+    // 【车机改造】固定列表模式：直接加载指定列表，不走「恢复上次选中列表」的流程
+    if (typeof propsListIdRef.current == 'string') {
+      updateList(propsListIdRef.current)
+    } else if (global.lx.jumpMyListPosition) {
       global.lx.jumpMyListPosition = false
       if (playerState.playMusicInfo.listId) {
         waitJumpListPositionRef.current = true
@@ -198,20 +217,25 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       } else void getListPrevSelectId().then(updateList)
     } else void getListPrevSelectId().then(updateList)
 
-    global.state_event.on('mylistToggled', updateList)
+    // 固定列表模式不订阅 mylistToggled（全局激活列表变化与本地音乐无关）
+    if (typeof propsListIdRef.current != 'string') {
+      global.state_event.on('mylistToggled', updateList)
+    }
     global.app_event.on('myListMusicUpdate', handleChange)
     global.app_event.on('jumpListPosition', handleJumpPosition)
 
     return () => {
-      global.state_event.off('mylistToggled', updateList)
+      if (typeof propsListIdRef.current != 'string') {
+        global.state_event.off('mylistToggled', updateList)
+      }
       global.app_event.off('myListMusicUpdate', handleChange)
       global.app_event.off('jumpListPosition', handleJumpPosition)
     }
   }, [])
 
-  const activeIndex = usePlayIndex()
+  const activeIndex = usePlayIndex(listId)
   const handlePlay = (index: number) => {
-    void playList(listState.activeListId, index)
+    void playList(listId ?? listState.activeListId, index)
   }
 
   const handleUpdateSelectedList = (newList: LX.List.ListMusics) => {
@@ -277,7 +301,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       listFirstScrollRef.current = false
       return
     }
-    void saveListPosition(listState.activeListId, nativeEvent.contentOffset.y)
+    void saveListPosition(listId ?? listState.activeListId, nativeEvent.contentOffset.y)
   }
 
 

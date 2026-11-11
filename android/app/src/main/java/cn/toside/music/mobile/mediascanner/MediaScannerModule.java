@@ -20,8 +20,28 @@ import java.util.List;
 /**
  * 【车机改造】本地音乐扫描：基于系统 MediaStore 索引（零重复扫描开销），
  * 覆盖内置存储与所有已挂载的外置卷（U 盘）。
+ * 【v32】智能过滤只呈现音乐：
+ *   1. 排除系统标记的铃声/闹钟/通知音（IS_RINGTONE/IS_ALARM/IS_NOTIFICATION）
+ *   2. 排除常见录音目录（录音机、通话录音、微信语音兜底）
+ *   3. 排除时长 < 30 秒的短音频（录音、系统音效兜底）
  */
 public class MediaScannerModule extends ReactContextBaseJavaModule {
+
+  /** 时长阈值（秒）：低于此值视为录音/音效而非音乐 */
+  private static final long MIN_DURATION_SECONDS = 30;
+
+  /**
+   * 录音目录黑名单：路径中包含这些片段（不区分大小写）的文件不收录。
+   * 覆盖各厂商录音机、通话录音、微信语音等常见位置。
+   */
+  private static final String[] EXCLUDED_PATH_SEGMENTS = new String[]{
+    "/recordings/", "/recordingsbackup/",
+    "/record/", "/recorder/", "/voice_recorder/", "/voicerecorder/", "/voices/",
+    "/sound_recorder/", "/sounds/", // 小米录音机 / 部分厂商录音与系统音效目录
+    "/callrecord/", "/call_record/", "/callrecordings/", "/call/", "/calllog/",
+    "/phoneRecord/", "/telephonerecord/",
+    "/micromsg/", // 微信（语音、收到音频均在 micromsg 目录下）
+  };
 
   private final ReactApplicationContext reactContext;
 
@@ -64,6 +84,11 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
         MediaStore.Audio.Media.DURATION,
         MediaStore.Audio.Media.SIZE,
         MediaStore.Audio.Media.MIME_TYPE,
+        // 【v32】系统音频分类标记：铃声/闹钟/通知/音乐
+        MediaStore.Audio.Media.IS_RINGTONE,
+        MediaStore.Audio.Media.IS_ALARM,
+        MediaStore.Audio.Media.IS_NOTIFICATION,
+        MediaStore.Audio.Media.IS_MUSIC,
       };
 
       for (Uri uri : uris) {
@@ -75,13 +100,27 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
           while (cursor.moveToNext()) {
             String path = cursor.getString(0);
             if (path == null || path.isEmpty()) continue;
+            // 【v32】过滤 1：系统标记的铃声/闹钟/通知音
+            if (cursor.getInt(7) == 1 || cursor.getInt(8) == 1 || cursor.getInt(9) == 1) continue;
+            // 【v32】过滤 2：录音目录黑名单（大小写不敏感）
+            String pathLower = '/' + path.toLowerCase() + '/';
+            boolean excluded = false;
+            for (String seg : EXCLUDED_PATH_SEGMENTS) {
+              if (pathLower.contains(seg)) {
+                excluded = true;
+                break;
+              }
+            }
+            if (excluded) continue;
+            long duration = cursor.getLong(4);
+            // 【v32】过滤 3：时长 < 30 秒的短音频（录音、系统音效兜底）；duration 未知(0)时放行由上层元数据兜底
+            if (duration > 0 && duration < MIN_DURATION_SECONDS * 1000) continue;
             WritableMap map = Arguments.createMap();
             map.putString("path", path);
             map.putString("title", cursor.getString(1));
             String artist = cursor.getString(2);
             map.putString("artist", (artist == null || "<unknown>".equalsIgnoreCase(artist)) ? "" : artist);
             map.putString("album", cursor.getString(3) == null ? "" : cursor.getString(3));
-            long duration = cursor.getLong(4);
             map.putDouble("duration", duration > 0 ? duration / 1000.0 : 0);
             map.putDouble("size", cursor.getLong(5));
             String mime = cursor.getString(6);
