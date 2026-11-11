@@ -5,7 +5,7 @@ import { readMetadata } from '@/utils/localMediaMetadata'
 import { getListMusics } from '@/utils/listManage'
 import { requestStoragePermission } from '@/utils/tools'
 import { formatPlayTime2 } from '@/utils/common'
-import { getLocalScanFolders } from '@/utils/data'
+import { getLocalScanExcluded } from '@/utils/data'
 
 /**
  * 【车机改造】本地无损曲库：
@@ -98,10 +98,11 @@ export const scanLocalMusic = async(): Promise<ScanResult> => {
   await ensureLocalList()
 
   // 1. MediaStore 秒扫
-  // 【v33】扫描范围：用户选中的文件夹（多选，路径前缀匹配）；未选择 = 全盘扫描。
-  // 增量移除也限定在扫描范围内——范围外的已有歌曲不会被误删。
-  const scopeFolders = (await getLocalScanFolders()).map(f => f.endsWith('/') ? f : `${f}/`)
-  const inScope = (p: string) => scopeFolders.length == 0 || scopeFolders.some(f => p.startsWith(f))
+  // 【v34】扫描排除列表（黑名单）：默认全部扫描，用户在文件夹选择器中取消勾选的文件夹
+  // 不参与扫描。排除列表之外的文件夹（含以后新出现的）默认都会收录。
+  // 增量移除同样跳过被排除的文件夹——排除文件夹里的已有歌曲不会被误删。
+  const excludedFolders = (await getLocalScanExcluded()).map(f => f.endsWith('/') ? f : `${f}/`)
+  const inScope = (p: string) => !excludedFolders.some(f => p.startsWith(f))
 
   const raw: ScannedAudioItem[] = await NativeModules.MediaScannerModule.scanAudio()
   const items = raw.filter(item => {

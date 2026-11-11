@@ -75,7 +75,7 @@ export const storageDataPrefix = {
   carUIScale: '@car_ui_scale',
 
   // 【v33】本地音乐扫描范围：选中的文件夹路径数组（空数组 = 全盘扫描）
-  localScanFolders: '@local_scan_folders',
+  localScanExcluded: '@local_scan_excluded',
 
   theme: '@theme',
 

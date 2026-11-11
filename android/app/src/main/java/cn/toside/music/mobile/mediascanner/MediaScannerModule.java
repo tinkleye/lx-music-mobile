@@ -133,6 +133,77 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
           if (cursor != null) cursor.close();
         }
       }
+  /**
+   * 【v34】列出所有「扫到疑似音乐」的文件夹（与 scanAudio 相同的过滤条件聚合去重）。
+   * 返回: [{path, count}]，path 为父目录绝对路径，count 为该目录下的音乐文件数。
+   * 用于扫描范围选择器：默认全部勾选，用户取消勾选的文件夹不参与扫描。
+   */
+  @SuppressLint("Recycle")
+  @ReactMethod
+  public void getAudioFolders(final Promise promise) {
+    try {
+      Context context = reactContext;
+
+      List<Uri> uris = new java.util.ArrayList<>();
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        for (String volume : MediaStore.getExternalVolumeNames(context)) {
+          uris.add(MediaStore.Audio.Media.getContentUri(volume));
+        }
+      } else {
+        uris.add(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI);
+      }
+
+      String[] projection = new String[]{
+        MediaStore.Audio.Media.DATA,
+        MediaStore.Audio.Media.DURATION,
+        MediaStore.Audio.Media.IS_RINGTONE,
+        MediaStore.Audio.Media.IS_ALARM,
+        MediaStore.Audio.Media.IS_NOTIFICATION,
+      };
+
+      // LinkedHashMap 保持首次出现顺序，最后按路径排序
+      java.util.Map<String, Integer> folders = new java.util.LinkedHashMap<>();
+      for (Uri uri : uris) {
+        Cursor cursor = null;
+        try {
+          cursor = context.getContentResolver().query(uri, projection, null, null, null);
+          if (cursor == null) continue;
+          while (cursor.moveToNext()) {
+            String path = cursor.getString(0);
+            if (path == null || path.isEmpty()) continue;
+            if (cursor.getInt(2) == 1 || cursor.getInt(3) == 1 || cursor.getInt(4) == 1) continue;
+            String pathLower = '/' + path.toLowerCase() + '/';
+            boolean excluded = false;
+            for (String seg : EXCLUDED_PATH_SEGMENTS) {
+              if (pathLower.contains(seg)) {
+                excluded = true;
+                break;
+              }
+            }
+            if (excluded) continue;
+            long duration = cursor.getLong(1);
+            if (duration > 0 && duration < MIN_DURATION_SECONDS * 1000) continue;
+            int lastSlash = path.lastIndexOf('/');
+            if (lastSlash <= 0) continue;
+            String folder = path.substring(0, lastSlash);
+            folders.merge(folder, 1, Integer::sum);
+          }
+        } catch (Exception ignored) {
+          // 单个卷查询失败不影响其他卷
+        } finally {
+          if (cursor != null) cursor.close();
+        }
+      }
+
+      WritableArray result = Arguments.createArray();
+      java.util.List<String> keys = new java.util.ArrayList<>(folders.keySet());
+      java.util.Collections.sort(keys);
+      for (String folder : keys) {
+        WritableMap map = Arguments.createMap();
+        map.putString("path", folder);
+        map.putInt("count", folders.get(folder));
+        result.pushMap(map);
+      }
       promise.resolve(result);
     } catch (Exception err) {
       promise.reject("SCAN_ERROR", err);
