@@ -111,6 +111,8 @@ export default () => {
 const styles = createStyle({
   container: {
     flex: 1,
+    // 【v36】单页网格垂直居中：卡片计算余量上下均分，不再全部堆在底部
+    justifyContent: 'center',
   },
   pager: {
     flex: 1,

@@ -100,7 +100,8 @@ export const scanLocalMusic = async(): Promise<ScanResult> => {
   // 1. MediaStore 秒扫
   // 【v34】扫描排除列表（黑名单）：默认全部扫描，用户在文件夹选择器中取消勾选的文件夹
   // 不参与扫描。排除列表之外的文件夹（含以后新出现的）默认都会收录。
-  // 增量移除同样跳过被排除的文件夹——排除文件夹里的已有歌曲不会被误删。
+  // 【v36】排除即移除：已在列表中但位于排除文件夹内的歌曲，重新扫描时一并移除，
+  // 让取消勾选立即在歌单上生效（文件本身不动，重新勾选再扫一次即可恢复）。
   const excludedFolders = (await getLocalScanExcluded()).map(f => f.endsWith('/') ? f : `${f}/`)
   const inScope = (p: string) => !excludedFolders.some(f => p.startsWith(f))
 
@@ -117,8 +118,7 @@ export const scanLocalMusic = async(): Promise<ScanResult> => {
 
   const newItems = items.filter(i => !existingPaths.has(i.path))
   const removedIds = existing.filter(info => {
-    const path = getFilePathFromMusicInfo(info)
-    return inScope(path) && !scannedPaths.has(path)
+    return !scannedPaths.has(getFilePathFromMusicInfo(info))
   }).map(info => info.id)
 
   // 3. 读取新文件元数据（与原版添加本地歌曲相同方式，2 路并发）

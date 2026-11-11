@@ -84,9 +84,16 @@ export default memo(({ visible, excluded, onClose }: {
   }
 
   const handleClose = () => {
-    // 合并历史排除项（文件夹暂时无文件/U盘未挂载时保留记录，插回后仍生效）
+    // 【v36】历史排除项只保留「本次列表里没出现的文件夹」（对应 U 盘未挂载等场景，
+    // 插回后仍生效）；本次列表内的文件夹完全以当前勾选为准——
+    // 旧逻辑无条件把上次排除项加回来，导致重新勾选（取消排除）被静默回退。
     const merged = new Set(excludedSet)
-    for (const f of excluded) merged.add(f)
+    if (folders) {
+      const currentPaths = new Set(folders.map(f => f.path))
+      for (const f of excluded) {
+        if (!currentPaths.has(f)) merged.add(f)
+      }
+    }
     onClose([...merged])
   }
 
