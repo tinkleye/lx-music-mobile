@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TouchableOpacity, View, useWindowDimensions } from 'react-native'
+import { TouchableOpacity, View, type LayoutChangeEvent } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
@@ -9,9 +9,11 @@ import { setNavActiveId } from '@/core/common'
 import type { InitState as CommonState } from '@/store/common/state'
 
 // 【车机改造】驾驶首页：大卡片入口，防眩光、盲操作友好
-// 【v34】卡片尺寸按窗口宽高强制计算，横屏 3列×2行 / 竖屏 2列×3行 正好铺满一屏，
-// 不再垂直滚动；图标与文字随屏幕缩放。超过一页（6 个）时用 PagerView 左右滑动翻页
-// （参考歌单横向翻页逻辑），并在底部显示分页指示点。
+// 【v35】卡片尺寸按 onLayout 实测的内容区宽高强制计算（不再依赖窗口尺寸——
+// 横屏左侧有导航栏占位，按窗口宽算出的 3 列卡片会溢出变成 2×2）：
+// 横屏 3列×2行 / 竖屏 2列×3行 正好铺满一屏不滚动；图标与文字随容器缩放。
+// 超过一页（6 个）时用 PagerView 左右滑动翻页（参考歌单横向翻页逻辑），
+// 并在底部显示分页指示点。
 type CardItem = { id: CommonState['navActiveId'], icon: string, labelKey: string }
 
 const CARDS: CardItem[] = [
@@ -32,10 +34,15 @@ const onPageSelected = (setPage: (n: number) => void) => (e: PagerViewOnPageSele
 
 export default () => {
   const theme = useTheme()
-  const { width: winW, height: winH } = useWindowDimensions()
   const [page, setPage] = useState(0)
+  const [size, setSize] = useState({ w: 0, h: 0 })
 
-  const isLandscape = winW > winH
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout
+    setSize(prev => (prev.w == Math.round(width) && prev.h == Math.round(height) ? prev : { w: Math.round(width), h: Math.round(height) }))
+  }
+
+  const isLandscape = size.w > size.h
   const columns = isLandscape ? 3 : 2
   const rows = isLandscape ? 2 : 3
   const pageSize = columns * rows
@@ -43,9 +50,9 @@ export default () => {
   const pages: CardItem[][] = []
   for (let i = 0; i < CARDS.length; i += pageSize) pages.push(CARDS.slice(i, i + pageSize))
 
-  // 卡片尺寸按窗口宽高强制计算：宽按列数、高按行数均分，正好铺满一屏
-  const cardW = Math.floor((winW - PAD * 2 - GAP * (columns - 1)) / columns)
-  const cardH = Math.floor((winH - PAD * 2 - GAP * (rows - 1)) / rows) - 4
+  // 卡片尺寸按内容区实测宽高强制计算：宽按列数、高按行数均分，正好铺满
+  const cardW = Math.floor((size.w - PAD * 2 - GAP * (columns - 1)) / columns)
+  const cardH = Math.floor((size.h - PAD * 2 - GAP * (rows - 1)) / rows) - 4
   const iconSize = Math.floor(Math.min(cardW, cardH) * 0.32)
   const fontSize = Math.max(14, Math.min(22, Math.round(Math.min(cardW, cardH) * 0.13)))
 
@@ -72,36 +79,38 @@ export default () => {
     </View>
   )
 
-  if (pages.length <= 1) return <View style={styles.container}>{renderGrid(pages[0])}</View>
+  const renderBody = () => {
+    if (size.w <= 0 || size.h <= 0 || cardW <= 0 || cardH <= 0) return null
+    if (pages.length <= 1) return renderGrid(pages[0])
+    return (
+      <>
+        <PagerView style={styles.pager} initialPage={0} onPageSelected={onPageSelected(setPage)}>
+          {pages.map((cards, i) => (
+            <View key={i} style={styles.page}>
+              {renderGrid(cards)}
+            </View>
+          ))}
+        </PagerView>
+        <View style={styles.dots}>
+          {pages.map((_, i) => (
+            <View
+              key={i}
+              style={{
+                ...styles.dot,
+                backgroundColor: i == page ? theme['c-primary'] : theme['c-300'],
+              }} />
+          ))}
+        </View>
+      </>
+    )
+  }
 
-  return (
-    <View style={styles.container}>
-      <PagerView style={styles.pager} initialPage={0} onPageSelected={onPageSelected(setPage)}>
-        {pages.map((cards, i) => (
-          <View key={i} style={styles.page}>
-            {renderGrid(cards)}
-          </View>
-        ))}
-      </PagerView>
-      <View style={styles.dots}>
-        {pages.map((_, i) => (
-          <View
-            key={i}
-            style={{
-              ...styles.dot,
-              backgroundColor: i == page ? theme['c-primary'] : theme['c-300'],
-            }} />
-        ))}
-      </View>
-    </View>
-  )
+  return <View style={styles.container} onLayout={handleLayout}>{renderBody()}</View>
 }
 
 const styles = createStyle({
   container: {
     flex: 1,
-    paddingTop: 8,
-    paddingBottom: 4,
   },
   pager: {
     flex: 1,

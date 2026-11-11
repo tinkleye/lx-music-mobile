@@ -40,8 +40,6 @@ const initial = async({ volume, playRate, cacheSize, isHandleAudioFocus, isEnabl
   await updateOptions()
   await setVolume(volume)
   await setPlaybackRate(playRate)
-  // 【车机改造】播放器就绪后挂载均衡器
-  void import('@/core/audioFx').then(({ applyEqualizer }) => applyEqualizer(true))
   // listenEvent()
 }
 

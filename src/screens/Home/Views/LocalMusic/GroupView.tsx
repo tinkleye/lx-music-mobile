@@ -83,9 +83,12 @@ export default ({ musics, groupBy, onPlay }: {
                 onPress={() => { setExpandedId(expanded ? null : group.id) }}
                 activeOpacity={0.7}
               >
+                {/* 【v35】展开指示：收起 ▶（向右三角），展开时旋转 90° 变向下 ▼。
+                    图标字体集没有现成下箭头，也不用 single-loop（那是单曲循环图标） */}
                 <Icon
-                  name={expanded ? 'single-loop' : 'play-outline'}
+                  name="play-outline"
                   size={14}
+                  style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}
                   color={theme['c-primary']}
                 />
                 <Text style={{ ...styles.groupName, color: theme['c-font'] }} numberOfLines={1}>{group.label}</Text>

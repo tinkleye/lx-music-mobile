@@ -2,7 +2,6 @@ import { memo, useEffect, useState } from 'react'
 
 import Theme from '../Theme'
 import Section from '../../components/Section'
-import SubTitle from '../../components/SubTitle'
 import Source from './Source'
 import SourceName from './SourceName'
 import Language from './Language'
@@ -20,12 +19,10 @@ import CarUIScale from './CarUIScale'
 import IsShowBackBtn from './IsShowBackBtn'
 import IsShowExitBtn from './IsShowExitBtn'
 import DrawerLayoutPosition from './DrawerLayoutPosition'
-import ThemeMode from '../Theme/ThemeMode'
 import { useI18n } from '@/lang/i18n'
 import { getCarMode, saveCarMode } from '@/utils/data'
 
-// 【v33】车机模式归组：勾选「车机模式」后才显示「界面大小」与「车机主题」两个子项；
-// 未勾选时隐藏，同时独立主题区块（Theme）在车机模式下自身也不再渲染。
+// 【v35】车机主题已移除，恢复原版主题选择；归组仅保留「界面大小」子项。
 export default memo(() => {
   const t = useI18n()
   const [carMode, setCarMode] = useState(true)
@@ -51,18 +48,7 @@ export default memo(() => {
       <IsUseSystemFileSelector />
       {/* 【改造】「启动时进入全屏」已并入「车机模式」，不再单独提供开关 */}
       <IsCarMode enabled={carMode} onChange={handleCarModeChange} />
-      {
-        carMode
-          ? (
-              <>
-                <CarUIScale />
-                <SubTitle title={t('setting_basic_theme_car')}>
-                  <ThemeMode />
-                </SubTitle>
-              </>
-            )
-          : null
-      }
+      {carMode ? <CarUIScale /> : null}
       <IsAlwaysKeepStatusbarHeight />
       <Theme />
       <DrawerLayoutPosition />

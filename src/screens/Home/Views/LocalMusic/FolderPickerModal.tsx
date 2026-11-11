@@ -120,10 +120,10 @@ export default memo(({ visible, excluded, onClose }: {
                           <Text numberOfLines={2} style={{ ...styles.name, color: theme['c-font'] }}>{displayPath(f.path, t('local_music_storage'), t('local_music_usb'))}</Text>
                           <Text style={{ ...styles.count, color: theme['c-font-label'] }}>{t('local_music_folder_songs', { n: f.count })}</Text>
                         </View>
+                        {/* 注意：不能传 need——need 语义是"必选项"，会把勾选项置为 disabled 导致无法取消勾选 */}
                         <CheckBox
                           check={isChecked(f.path)}
-                          onChange={() => { toggleFolder(f.path) }}
-                          need />
+                          onChange={() => { toggleFolder(f.path) }} />
                       </View>
                     )))
             }

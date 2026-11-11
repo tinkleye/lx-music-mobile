@@ -2,7 +2,6 @@ import { memo } from 'react'
 
 import Section from '../../components/Section'
 import IsSavePlayTime from './IsSavePlayTime'
-import EqPreset from './EqPreset'
 import PlayHighQuality from './PlayHighQuality'
 import IsHandleAudioFocus from './IsHandleAudioFocus'
 import IsEnableAudioOffload from './IsEnableAudioOffload'
@@ -23,7 +22,6 @@ export default memo(() => {
   return (
     <Section title={t('setting_player')}>
       <IsSavePlayTime />
-      <EqPreset />
       <IsAutoCleanPlayedList />
       <IsHandleAudioFocus />
       <IsEnableAudioOffload />
