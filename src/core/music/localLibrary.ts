@@ -5,6 +5,7 @@ import { readMetadata } from '@/utils/localMediaMetadata'
 import { getListMusics } from '@/utils/listManage'
 import { requestStoragePermission } from '@/utils/tools'
 import { formatPlayTime2 } from '@/utils/common'
+import { getLocalScanFolders } from '@/utils/data'
 
 /**
  * 【车机改造】本地无损曲库：
@@ -97,10 +98,15 @@ export const scanLocalMusic = async(): Promise<ScanResult> => {
   await ensureLocalList()
 
   // 1. MediaStore 秒扫
+  // 【v33】扫描范围：用户选中的文件夹（多选，路径前缀匹配）；未选择 = 全盘扫描。
+  // 增量移除也限定在扫描范围内——范围外的已有歌曲不会被误删。
+  const scopeFolders = (await getLocalScanFolders()).map(f => f.endsWith('/') ? f : `${f}/`)
+  const inScope = (p: string) => scopeFolders.length == 0 || scopeFolders.some(f => p.startsWith(f))
+
   const raw: ScannedAudioItem[] = await NativeModules.MediaScannerModule.scanAudio()
   const items = raw.filter(item => {
     const ext = item.path.substring(item.path.lastIndexOf('.') + 1).toLowerCase()
-    return SUPPORTED_EXTS.has(ext)
+    return SUPPORTED_EXTS.has(ext) && inScope(item.path)
   })
 
   // 2. 与现有列表对比，增量更新
@@ -111,7 +117,7 @@ export const scanLocalMusic = async(): Promise<ScanResult> => {
   const newItems = items.filter(i => !existingPaths.has(i.path))
   const removedIds = existing.filter(info => {
     const path = getFilePathFromMusicInfo(info)
-    return !scannedPaths.has(path)
+    return inScope(path) && !scannedPaths.has(path)
   }).map(info => info.id)
 
   // 3. 读取新文件元数据（与原版添加本地歌曲相同方式，2 路并发）

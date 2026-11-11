@@ -102,7 +102,10 @@ const Header = () => {
   return (
     <View style={{ paddingTop: statusBarHeight }}>
       <View style={styles.header}>
-        <Icon name="logo" color={theme['c-primary-dark-100-alpha-300']} size={22} />
+        {/* 【v33】logo 可点：点击进入驾驶页（驾驶页不再占导航栏图标） */}
+        <TouchableOpacity onPress={() => { setNavActiveId('nav_drive') }} activeOpacity={0.7}>
+          <Icon name="logo" color={theme['c-primary-dark-100-alpha-300']} size={22} />
+        </TouchableOpacity>
         {/* <Text style={styles.headerText} size={16} color={theme['c-primary-dark-100-alpha-300']}>LX Music</Text> */}
       </View>
     </View>

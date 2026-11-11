@@ -74,6 +74,9 @@ export const storageDataPrefix = {
   carMode: '@car_mode',
   carUIScale: '@car_ui_scale',
 
+  // 【v33】本地音乐扫描范围：选中的文件夹路径数组（空数组 = 全盘扫描）
+  localScanFolders: '@local_scan_folders',
+
   theme: '@theme',
 
   cheatTip: '@cheat_tip',
@@ -102,8 +105,9 @@ export const storageDataPrefixOld = {
 export const APP_PROVIDER_NAME = 'cn.toside.music.mobile.provider'
 
 
+// 【v33】驾驶页不再占用导航栏图标：点击左上角 logo 进入驾驶页。
+// 页面本身保留（Horizontal/Vertical Main 仍挂载），只是不在 NAV_MENUS 里渲染。
 export const NAV_MENUS = [
-  { id: 'nav_drive', icon: 'home' },
   { id: 'nav_search', icon: 'search-2' },
   { id: 'nav_songlist', icon: 'album' },
   { id: 'nav_top', icon: 'leaderboard' },
@@ -113,7 +117,7 @@ export const NAV_MENUS = [
   { id: 'nav_setting', icon: 'setting' },
 ] as const
 
-export type NAV_ID_Type = typeof NAV_MENUS[number]['id']
+export type NAV_ID_Type = typeof NAV_MENUS[number]['id'] | 'nav_drive'
 
 export const LXM_FILE_EXT_RXP = ['json', 'lxmc', 'bin']
 export const USER_API_SOURCE_FILE_EXT_RXP = ['js']

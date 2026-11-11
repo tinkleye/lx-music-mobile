@@ -21,10 +21,11 @@ const CARDS: CardItem[] = [
 
 export default () => {
   const theme = useTheme()
-  const { width: winW } = useWindowDimensions()
+  const { width: winW, height: winH } = useWindowDimensions()
 
-  // 宽屏 3 列、窄屏 2 列；卡片宽度按剩余空间均分，高度用宽高比锁定
-  const columns = winW >= 640 ? 3 : 2
+  // 【v33】按横竖屏判定列数（1920×720 物理分辨率下 dp 宽度随密度浮动，
+  // dp 阈值不可靠）：宽>高即横屏 3 列，否则竖屏 2 列，任何密度都成立
+  const columns = winW > winH ? 3 : 2
   const GAP = 12
   const PAD = 14
   const cardW = Math.floor((winW - PAD * 2 - GAP * (columns - 1)) / columns)

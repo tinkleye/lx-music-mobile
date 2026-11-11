@@ -79,6 +79,13 @@ export const saveCarUIScale = async(scale: number) => {
   await saveData(carUIScaleKey, scale)
 }
 
+// 【v33】本地音乐扫描范围：选中的文件夹路径数组（空数组 = 全盘扫描）
+const localScanFoldersKey = storageDataPrefix.localScanFolders
+export const getLocalScanFolders = async() => (await getData<string[]>(localScanFoldersKey) ?? [])
+export const saveLocalScanFolders = async(folders: string[]) => {
+  await saveData(localScanFoldersKey, folders)
+}
+
 export const getUserTheme = async() => (await getData<LX.Theme[]>(themeKey) ?? [])
 export const saveUserTheme = async(themes: LX.Theme[]) => {
   await saveData(themeKey, themes)
