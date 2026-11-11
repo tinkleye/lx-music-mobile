@@ -31,6 +31,9 @@ export interface ListProps {
   onSelectAll: (isAll: boolean) => void
   // 【车机改造】固定列表 ID：传入后本组件只显示该列表（如本地音乐），不再跟随全局 activeListId
   listId?: string
+  // 【v37】翻页模式：true=左右翻页(CarPagedList)、false=上下滚动(FlatList)；
+  // 不传时保持车机模式默认（车机开启 → 翻页）。本地音乐页按横竖屏显式传入。
+  paging?: boolean
 }
 export interface ListType {
   setIsMultiSelectMode: (isMultiSelectMode: boolean) => void
@@ -54,7 +57,7 @@ const usePlayIndex = (listId?: string) => {
 }
 
 
-const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, onSelectAll, listId }, ref) => {
+const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, onSelectAll, listId, paging }, ref) => {
   // const t = useI18n()
   const t = useI18n()
   const theme = useTheme()
@@ -69,8 +72,16 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   const selectedListRef = useRef<LX.List.ListMusics>([])
   const currentListIdRef = useRef('')
   const propsListIdRef = useRef(listId) // 【车机改造】固定列表 ID 快照（组件不重挂载时保持不变）
+  // 【v37】翻页/滚动模式：paging 显式传入优先（本地音乐页按横竖屏切换）；
+  // 不传时回退车机模式默认（车机开启 → 翻页）。
+  // ref 供事件回调与命令式方法在运行时读取当前模式（旋转后取值不陈旧）
+  const isPaged = paging ?? carMode
+  const pagedModeRef = useRef(isPaged)
+  pagedModeRef.current = isPaged
   const waitJumpListPositionRef = useRef(false)
   const rowInfo = useRef(getRowInfo())
+  // 【v37】翻页模式下列数每次渲染实时取（旋转后 mount 时的快照会过期）
+  const activeRowInfo = isPaged ? getRowInfo() : rowInfo.current
   const isShowAlbumName = useSettingValue('list.isShowAlbumName')
   const isShowInterval = useSettingValue('list.isShowInterval')
   // console.log('render music list')
@@ -103,7 +114,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       void getListMusics(listId ?? listState.activeListId).then((list) => {
         const index = list.findIndex(m => m.id == info.id)
         if (index < 0) return
-        if (carMode) {
+        if (pagedModeRef.current) {
           pagedRef.current?.scrollToIndex(index, true)
           return
         }
@@ -111,7 +122,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
       })
     },
     scrollToTop() {
-      if (carMode) {
+      if (pagedModeRef.current) {
         pagedRef.current?.scrollToPage(0, true)
         return
       }
@@ -141,7 +152,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
             if (waitJumpListPositionRef.current) {
               waitJumpListPositionRef.current = false
               if (playerState.playMusicInfo.listId == id && playerState.playInfo.playIndex > -1) {
-                if (carMode) {
+                if (pagedModeRef.current) {
                   pagedRef.current?.scrollToIndex(playerState.playInfo.playIndex, false)
                   return
                 }
@@ -151,7 +162,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
                 } catch {}
               }
             }
-            if (carMode) {
+            if (pagedModeRef.current) {
               // 翻页模式没有纵向滚动位置的概念，切列表时直接回到第一页
               pagedRef.current?.scrollToPage(0, false)
               return
@@ -179,7 +190,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
         // 【车机改造】固定列表模式下：只滚动到本列表内正在播放的歌曲，绝不切换全局激活列表
         if (typeof propsListIdRef.current == 'string') {
           if (listId == propsListIdRef.current && playerState.playInfo.playIndex > -1) {
-            if (carMode) {
+            if (pagedModeRef.current) {
               pagedRef.current?.scrollToIndex(playerState.playInfo.playIndex, true)
               return
             }
@@ -195,7 +206,7 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
         } else if (playerState.playInfo.playIndex > -1) {
           if (isUpdateingList) waitJumpListPositionRef.current = true
           else {
-            if (carMode) {
+            if (pagedModeRef.current) {
               pagedRef.current?.scrollToIndex(playerState.playInfo.playIndex, true)
               return
             }
@@ -325,13 +336,13 @@ const List = forwardRef<ListType, ListProps>(({ onShowMenu, onMuiltSelectMode, o
   }
 
   // 【车机改造】分页模式：一屏一页完整显示，左右滑动翻页，不再上下滚动
-  if (carMode) {
+  if (pagedModeRef.current) {
     return (
       <CarPagedList
         ref={pagedRef}
         data={currentList}
         itemHeight={ITEM_HEIGHT}
-        numColumns={rowInfo.current.rowNum ?? 1}
+        numColumns={activeRowInfo.rowNum ?? 1}
         keyExtractor={item => item.id}
         emptyComponent={<Text size={13} color={theme['c-font-label']}>{t('car_paged_list_empty')}</Text>}
         renderItem={(item, index) => (

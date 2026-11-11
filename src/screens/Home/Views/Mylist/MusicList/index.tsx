@@ -18,9 +18,10 @@ import MetadataEditModal, { type MetadataEditType, type MetadataEditProps } from
 import MusicToggleModal, { type MusicToggleModalType } from './MusicToggleModal'
 
 
-export default ({ listId }: { listId?: string } = {}) => {
+export default ({ listId, paging }: { listId?: string, paging?: boolean } = {}) => {
   // 【车机改造】固定列表模式：传入 listId 后，本组件只显示该列表（如本地音乐），
   // 隐藏列表切换栏，所有操作锁定该列表，与全局 activeListId 完全解耦
+  // 【v37】paging 透传给 List：true=左右翻页、false=上下滚动，不传走车机模式默认
   const isFixedList = typeof listId == 'string'
   // const t = useI18n()
   const activeListRef = useRef<ActiveListType>(null)
@@ -155,6 +156,7 @@ export default ({ listId }: { listId?: string } = {}) => {
         <List
           ref={listRef}
           listId={listId}
+          paging={paging}
           onShowMenu={showMenu}
           onMuiltSelectMode={hancelMultiSelect}
           onSelectAll={isAll => multipleModeBarRef.current?.setIsSelectAll(isAll)}
