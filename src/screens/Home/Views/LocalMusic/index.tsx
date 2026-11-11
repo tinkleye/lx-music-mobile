@@ -167,7 +167,9 @@ export default () => {
   )
 
   return (
-    <View style={{ ...styles.container, backgroundColor: theme['c-main-background'] }}>
+    // 【v39】不再画不透明底色：页面由 Home 的 PageContent 提供背景（主题背景图 /
+    // 勾选"使用动态背景"时的当前歌曲封面模糊图），画底色会把这些背景盖住
+    <View style={styles.container}>
       {
         isLandscape
           ? (

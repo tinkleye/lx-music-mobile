@@ -21,6 +21,7 @@ import { toggleTranslation } from '@/core/lyric'
 import { usePlayerMusicInfo, useProgress, useIsPlay } from '@/store/player/hook'
 import { playPrev, playNext, togglePlay } from '@/core/player/player'
 import settingState from '@/store/setting/state'
+import { useSettingValue } from '@/store/setting/hook'
 import { useI18n } from '@/lang'
 import {
   CAR_LYRIC_BLUR_RATIO,
@@ -438,7 +439,10 @@ export default memo(({ onClose }: { onClose: () => void }) => {
   const isNight = setting.nightMode == 'on' || (setting.nightMode == 'auto' && colorScheme == 'dark')
   const lyricColor = isNight ? dimColor(setting.color, CAR_LYRIC_NIGHT_DIM) : setting.color
   const emptyColor = isNight ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.3)'
-  const showCover = setting.background == 'cover' && !!musicInfo.pic
+  // 【v39】沉浸式歌词接入原版"使用动态背景"：勾选 theme.dynamicBg 时，
+  // 即使本页背景设为纯色，也显示当前歌曲封面的模糊背景（与原版动态背景一致）
+  const dynamicBg = useSettingValue('theme.dynamicBg')
+  const showCover = (setting.background == 'cover' || dynamicBg) && !!musicInfo.pic
   // 模糊半径跟着屏幕短边走：太小看不出模糊，太大安卓会糊成色块
   const blurRadius = Math.round(Math.min(Math.min(width, height) * CAR_LYRIC_BLUR_RATIO[setting.blur], 60))
   const fontFamily = CAR_LYRIC_FONT_FAMILY[setting.fontFamily]
