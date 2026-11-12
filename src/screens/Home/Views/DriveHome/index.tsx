@@ -50,34 +50,47 @@ export default () => {
   const pages: CardItem[][] = []
   for (let i = 0; i < CARDS.length; i += pageSize) pages.push(CARDS.slice(i, i + pageSize))
 
-  // 卡片尺寸按内容区实测宽高强制计算：宽按列数、高按行数均分，正好铺满
-  const cardW = Math.floor((size.w - PAD * 2 - GAP * (columns - 1)) / columns)
+  // 卡片尺寸按内容区实测宽高强制计算：宽按列数、高按行数均分，正好铺满。
+  // 【v41】宽度减 2px：低密度车机屏上 Yoga 像素取整可能让 3 张卡累计溢出几 px
+  const cardW = Math.floor((size.w - PAD * 2 - GAP * (columns - 1)) / columns) - 2
   const cardH = Math.floor((size.h - PAD * 2 - GAP * (rows - 1)) / rows) - 4
   const iconSize = Math.floor(Math.min(cardW, cardH) * 0.32)
   const fontSize = Math.max(14, Math.min(22, Math.round(Math.min(cardW, cardH) * 0.13)))
 
-  const renderGrid = (cards: CardItem[]) => (
-    <View style={styles.grid}>
-      {
-        cards.map(card => (
-          <TouchableOpacity
-            key={card.id}
-            style={{
-              ...styles.card,
-              width: cardW,
-              height: cardH,
-              backgroundColor: theme['c-primary-background-active'],
-            }}
-            onPress={() => { setNavActiveId(card.id) }}
-            activeOpacity={0.7}
-          >
-            <Icon name={card.icon} size={iconSize} color={theme['c-primary']} />
-            <Text style={{ ...styles.label, fontSize, color: theme['c-font'] }}>{global.i18n.t(card.labelKey)}</Text>
-          </TouchableOpacity>
-        ))
-      }
-    </View>
-  )
+  // 【v41】显式分行渲染：不再依赖 flexWrap 折行（wrap 在低密度屏上会因
+  // 取整误差把最后一张卡挤到下一行），每行固定 columns 张，物理上不可能换行错乱
+  const renderGrid = (cards: CardItem[]) => {
+    const gridRows: CardItem[][] = []
+    for (let i = 0; i < cards.length; i += columns) gridRows.push(cards.slice(i, i + columns))
+    return (
+      <View style={styles.grid}>
+        {
+          gridRows.map((rowCards, rowIndex) => (
+            <View key={rowIndex} style={styles.gridRow}>
+              {
+                rowCards.map(card => (
+                  <TouchableOpacity
+                    key={card.id}
+                    style={{
+                      ...styles.card,
+                      width: cardW,
+                      height: cardH,
+                      backgroundColor: theme['c-primary-background-active'],
+                    }}
+                    onPress={() => { setNavActiveId(card.id) }}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name={card.icon} size={iconSize} color={theme['c-primary']} />
+                    <Text style={{ ...styles.label, fontSize, color: theme['c-font'] }}>{global.i18n.t(card.labelKey)}</Text>
+                  </TouchableOpacity>
+                ))
+              }
+            </View>
+          ))
+        }
+      </View>
+    )
+  }
 
   const renderBody = () => {
     if (size.w <= 0 || size.h <= 0 || cardW <= 0 || cardH <= 0) return null
@@ -122,11 +135,16 @@ const styles = createStyle({
     justifyContent: 'center',
   },
   grid: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: PAD,
+    gap: GAP,
+  },
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: PAD,
     gap: GAP,
   },
   card: {
