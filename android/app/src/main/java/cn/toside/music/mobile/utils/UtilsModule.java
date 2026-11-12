@@ -108,6 +108,52 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     MainActivity.setFullscreenEnabled(enable);
   }
 
+  // ==================== 【v40】横竖屏显示 ====================
+
+  /**
+   * 【v40】设备是否声明车机形态（FEATURE_AUTOMOTIVE），用于「横屏显示」
+   * 首次默认值的判定。
+   */
+  @ReactMethod
+  public void isAutomotiveDevice(Promise promise) {
+    try {
+      boolean isAuto = reactContext.getPackageManager()
+        .hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE);
+      promise.resolve(isAuto);
+    } catch (Exception err) {
+      promise.reject("ERR", err);
+    }
+  }
+
+  /**
+   * 【v40】读取方向设置："1"=横屏，"0"=竖屏，"auto"=未设置（按设备形态判定）。
+   * 与 MainActivity.isLandscapeRequested 读同一个 SharedPreferences。
+   */
+  @ReactMethod
+  public void getLandscapeDisplayPref(Promise promise) {
+    try {
+      android.content.SharedPreferences prefs = reactContext
+        .getSharedPreferences(MainActivity.ORIENTATION_PREFS, Context.MODE_PRIVATE);
+      promise.resolve(prefs.getString(MainActivity.ORIENTATION_KEY, "auto"));
+    } catch (Exception err) {
+      promise.reject("ERR", err);
+    }
+  }
+
+  /**
+   * 【v40】保存方向设置并立即应用到当前 Activity（无需重启）。
+   */
+  @ReactMethod
+  public void setLandscapeDisplay(boolean enable) {
+    try {
+      android.content.SharedPreferences prefs = reactContext
+        .getSharedPreferences(MainActivity.ORIENTATION_PREFS, Context.MODE_PRIVATE);
+      prefs.edit().putString(MainActivity.ORIENTATION_KEY, enable ? "1" : "0").apply();
+      MainActivity.setLandscapeRequested(enable);
+    } catch (Throwable ignored) {
+    }
+  }
+
   @ReactMethod
   public void exitApp() {
     // https://github.com/wumke/react-native-exit-app/blob/master/android/src/main/java/com/github/wumke/RNExitApp/RNExitAppModule.java

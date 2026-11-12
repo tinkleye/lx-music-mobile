@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TouchableOpacity, View, type LayoutChangeEvent } from 'react-native'
+import { TouchableOpacity, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
@@ -36,13 +36,19 @@ export default () => {
   const theme = useTheme()
   const [page, setPage] = useState(0)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  // 【v40】方向判断改用 useWindowDimensions：车机上 Yoga 亚像素取整 + onLayout
+  // 低密度屏取整误差，曾把第 3 张卡挤到下一行（只显示两列）。窗口尺寸判断方向
+  // 稳定可靠；onLayout 实测值只用来算卡片大小（左侧导航栏占位仍需扣除）。
+  const win = useWindowDimensions()
+  const isLandscape = win.width > win.height
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout
-    setSize(prev => (prev.w == Math.round(width) && prev.h == Math.round(height) ? prev : { w: Math.round(width), h: Math.round(height) }))
+    const rounded = { w: Math.round(width), h: Math.round(height) }
+    if (__DEV__) console.log('[DriveHome] layout:', rounded)
+    setSize(prev => (prev.w == rounded.w && prev.h == rounded.h ? prev : rounded))
   }
 
-  const isLandscape = size.w > size.h
   const columns = isLandscape ? 3 : 2
   const rows = isLandscape ? 2 : 3
   const pageSize = columns * rows
@@ -50,8 +56,10 @@ export default () => {
   const pages: CardItem[][] = []
   for (let i = 0; i < CARDS.length; i += pageSize) pages.push(CARDS.slice(i, i + pageSize))
 
-  // 卡片尺寸按内容区实测宽高强制计算：宽按列数、高按行数均分，正好铺满
-  const cardW = Math.floor((size.w - PAD * 2 - GAP * (columns - 1)) / columns)
+  // 卡片尺寸按内容区实测宽高强制计算：宽按列数、高按行数均分，正好铺满。
+  // 【v40】宽度再减 2px 取整余量：低密度车机屏上 Yoga 逐卡向上取整会累计溢出，
+  // 把最后一张卡挤到下一行；高度仍留 4px。
+  const cardW = Math.floor((size.w - PAD * 2 - GAP * (columns - 1)) / columns) - 2
   const cardH = Math.floor((size.h - PAD * 2 - GAP * (rows - 1)) / rows) - 4
   const iconSize = Math.floor(Math.min(cardW, cardH) * 0.32)
   const fontSize = Math.max(14, Math.min(22, Math.round(Math.min(cardW, cardH) * 0.13)))
@@ -123,7 +131,9 @@ const styles = createStyle({
   },
   grid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    // 【v40】nowrap：物理禁止换行 —— 卡片宽度是按实测容器算好的，一旦发生换行
+    // 必然是取整误差所致（车机上表现为"只显示两列"），宁可溢出 1px 也不换行
+    flexWrap: 'nowrap',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: PAD,

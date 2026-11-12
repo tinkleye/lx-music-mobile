@@ -2,6 +2,7 @@ import { Navigation } from 'react-native-navigation'
 import * as screenNames from './screenNames'
 import * as navigations from './navigation'
 import { isFullscreenEnabled } from '@/config/fullscreen'
+import { isLandscapeOrientation } from '@/config/orientation'
 
 import registerScreens from './registerScreens'
 import { removeComponentId } from '@/core/common'
@@ -9,6 +10,10 @@ import { onAppLaunched } from './regLaunchedEvent'
 
 let unRegisterEvent: ReturnType<ReturnType<typeof Navigation.events>['registerScreenPoppedListener']>
 
+// 【v40】方向声明：MainActivity 启动时按设置已定好方向；这里写进 RNN 全局
+// defaultOptions，让 RNN 每次页面切换 applyOptions 时 setRequestedOrientation
+// 应用的是与之一致的值，而不是默认的 UNSPECIFIED（解锁方向 —— 旧版手机上
+// "先横屏再竖屏"闪现的另一半根源）。app.ts 启动时通过 config/orientation 设置。
 const init = (callback: () => void | Promise<void>) => {
   // Register all screens on launch
   registerScreens()
@@ -16,6 +21,11 @@ const init = (callback: () => void | Promise<void>) => {
   if (unRegisterEvent) unRegisterEvent.remove()
 
   Navigation.setDefaultOptions({
+    // 【v40】方向与原生启动方向保持一致：横屏设备声明 sensorLandscape、
+    // 竖屏设备声明 portrait，RNN 的 applyOrientation 不再造成可见变化
+    layout: {
+      orientation: [isLandscapeOrientation() ? 'sensorLandscape' : 'portrait'],
+    },
     // 【改造】把状态栏显隐写进全局默认值，这是"空调栏闪现"的源头修复。
     //
     // react-native-navigation 在每次切换页面时都会按「该页面的 statusBar 配置」
