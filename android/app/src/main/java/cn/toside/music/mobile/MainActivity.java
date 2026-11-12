@@ -1,12 +1,7 @@
 package cn.toside.music.mobile;
 
-import android.app.Activity;
-import android.content.Context;
-import android.content.pm.PackageManager;
-import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.DisplayMetrics;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -64,13 +59,6 @@ public class MainActivity extends NavigationActivity {
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
-    // 【v40】方向在第一帧之前决定（super.onCreate 之前设置最稳）。
-    // 旧版把 sensorLandscape 写死在 Manifest，而 react-native-navigation 每次
-    // 页面切换都会 setRequestedOrientation(UNSPECIFIED) 解锁方向，
-    // 手机上表现为"先横屏再竖屏"的闪现。现在：无 Manifest 锁定 +
-    // 此处按设置/设备形态立刻定方向 + JS 侧 defaultOptions 声明同值，
-    // 三者一致后 RNN 的解锁动作不再造成可见变化。
-    applyStartupOrientation(this);
     super.onCreate(savedInstanceState);
     currentInstance = this;
 
@@ -178,78 +166,5 @@ public class MainActivity extends NavigationActivity {
       window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
     } catch (Throwable ignored) {
     }
-  }
-
-  // ==================== 【v40】横竖屏显示 ====================
-
-  /** 方向设置存取用的 SharedPreferences 文件与键（JS 侧 UtilsModule 同名读写） */
-  public static final String ORIENTATION_PREFS = "lx_music_prefs";
-  public static final String ORIENTATION_KEY = "landscape_display";
-  /** 用户未显式设置时（"auto"），按设备形态判定横竖屏 */
-  private static final String ORIENTATION_AUTO = "auto";
-
-  /**
-   * 未设置时判定默认方向：车机（FEATURE_AUTOMOTIVE）或屏幕宽高比 > 2.4
-   * （1920x720=2.67 这类超宽车机屏；手机普遍 <= 2.23）→ 横屏，否则竖屏。
-   */
-  private static boolean getDefaultLandscape(Context context) {
-    try {
-      if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) return true;
-      DisplayMetrics metrics = new DisplayMetrics();
-      WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-      if (wm == null) return false;
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-        wm.getDefaultDisplay().getRealMetrics(metrics);
-      } else {
-        wm.getDefaultDisplay().getMetrics(metrics);
-      }
-      int w = Math.max(metrics.widthPixels, metrics.heightPixels);
-      int h = Math.min(metrics.widthPixels, metrics.heightPixels);
-      return h > 0 && ((float) w / h) > 2.4f;
-    } catch (Throwable ignored) {
-      return false;
-    }
-  }
-
-  /**
-   * 读取方向设置："1"=横屏，"0"=竖屏，"auto"/缺省=按设备形态判定。
-   */
-  public static boolean isLandscapeRequested(Context context) {
-    try {
-      SharedPreferences prefs = context.getSharedPreferences(ORIENTATION_PREFS, Context.MODE_PRIVATE);
-      String value = prefs.getString(ORIENTATION_KEY, ORIENTATION_AUTO);
-      if ("1".equals(value)) return true;
-      if ("0".equals(value)) return false;
-      return getDefaultLandscape(context);
-    } catch (Throwable ignored) {
-      return true;
-    }
-  }
-
-  /**
-   * onCreate 第一时间应用方向，第一帧之前生效（消除启动横竖屏闪现）。
-   */
-  private static void applyStartupOrientation(Activity activity) {
-    try {
-      boolean landscape = isLandscapeRequested(activity);
-      activity.setRequestedOrientation(landscape
-        ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
-    } catch (Throwable ignored) {
-    }
-  }
-
-  /**
-   * 供 JS 调用：切换「横屏显示」后立即生效并持久化（写 pref 由 UtilsModule 负责）。
-   */
-  public static void setLandscapeRequested(boolean landscape) {
-    Activity activity = currentInstance;
-    if (activity == null) return;
-    activity.runOnUiThread(() -> {
-      try {
-        applyStartupOrientation(activity);
-      } catch (Throwable ignored) {
-      }
-    });
   }
 }

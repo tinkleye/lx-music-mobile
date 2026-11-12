@@ -1,9 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { View, useWindowDimensions } from 'react-native'
+import { View } from 'react-native'
 import settingState from '@/store/setting/state'
 import MusicList from './MusicList'
 import MyList from './MyList'
-import PortraitSelector from './PortraitSelector'
 import { useTheme } from '@/store/theme/hook'
 import DrawerLayoutFixed, { type DrawerLayoutFixedType } from '@/components/common/DrawerLayoutFixed'
 import { COMPONENT_IDS } from '@/config/constant'
@@ -20,9 +19,6 @@ const MAX_WIDTH = scaleSizeW(400)
 export default () => {
   const drawer = useRef<DrawerLayoutFixedType>(null)
   const theme = useTheme()
-  // 【v40】方向参与布局决策：车机模式下竖屏窄屏放不下左右两栏，改单栏下拉
-  const { width: winW, height: winH } = useWindowDimensions()
-  const isLandscape = winW > winH
   // const [width, setWidth] = useState(0)
 
   useEffect(() => {
@@ -64,20 +60,7 @@ export default () => {
 
   // 【改造】车机模式：固定左右两栏 —— 左栏是所有列表，右栏是当前列表的歌曲。
   // 不再用抽屉，所以点导航的「我的列表 / 我的收藏」都能直接看到全部列表。
-  // 【v40】竖屏窄屏：两栏挤不下（手机上车机模式开着尤其明显），
-  // 改单栏 —— 顶部歌单下拉选择器 + 下方当前列表歌曲上下滚动；
-  // 横屏维持左右两栏不变。
   if (carMode) {
-    if (!isLandscape) {
-      return (
-        <View style={styles.carPortrait}>
-          <PortraitSelector />
-          <View style={styles.carMain}>
-            <MusicList />
-          </View>
-        </View>
-      )
-    }
     return (
       <View style={styles.carContainer}>
         <View style={{ ...styles.carListPane, borderRightColor: theme['c-border-background'] }}>
@@ -113,10 +96,6 @@ const styles = createStyle({
   carContainer: {
     flex: 1,
     flexDirection: 'row',
-  },
-  // 【v40】车机模式竖屏：单栏（顶部下拉选择器 + 歌曲列表）
-  carPortrait: {
-    flex: 1,
   },
   carListPane: {
     // 【改造】车机模式左栏：所有列表常驻，占屏幕宽度约四分之一

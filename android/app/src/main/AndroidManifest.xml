@@ -23,13 +23,11 @@
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       tools:targetApi="n">
-      <!-- 【v40】方向不再写死在 Manifest：启动横屏 + RNN 每次页面切换都会
-           setRequestedOrientation(UNSPECIFIED) 解锁，两者叠加在手机上表现为
-           "先横屏再竖屏"的闪现。改为 MainActivity.onCreate 第一时间按
-           设置（SharedPreferences lx_music_prefs / landscape_display）
-           或设备形态（车机/超宽屏）决定方向，设置页「横屏显示」可随时切换。 -->
+      <!-- sensorLandscape：强制横屏，左右两个方向都支持（手机竖着拿也会自动转成横屏）。
+           想恢复跟随重力感应，把 screenOrientation 这一行删掉即可。 -->
       <activity
         android:name=".MainActivity"
+        android:screenOrientation="sensorLandscape"
         android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
         android:launchMode="singleTask"
         android:windowSoftInputMode="adjustResize"

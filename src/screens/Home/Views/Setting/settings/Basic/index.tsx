@@ -15,7 +15,6 @@ import IsAllowProgressBarSeek from './IsAllowProgressBarSeek'
 import IsUseSystemFileSelector from './IsUseSystemFileSelector'
 import IsAlwaysKeepStatusbarHeight from './IsAlwaysKeepStatusbarHeight'
 import IsCarMode from './IsCarMode'
-import IsLandscapeDisplay from './IsLandscapeDisplay'
 import CarUIScale from './CarUIScale'
 import IsShowBackBtn from './IsShowBackBtn'
 import IsShowExitBtn from './IsShowExitBtn'
@@ -50,8 +49,6 @@ export default memo(() => {
       {/* 【改造】「启动时进入全屏」已并入「车机模式」，不再单独提供开关 */}
       <IsCarMode enabled={carMode} onChange={handleCarModeChange} />
       {carMode ? <CarUIScale /> : null}
-      {/* 【v40】横竖屏独立开关：与车机模式解耦，手机默认竖屏不再闪横屏 */}
-      <IsLandscapeDisplay />
       <IsAlwaysKeepStatusbarHeight />
       <Theme />
       <DrawerLayoutPosition />

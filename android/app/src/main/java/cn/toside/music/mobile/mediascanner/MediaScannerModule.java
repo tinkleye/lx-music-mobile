@@ -1,19 +1,11 @@
 package cn.toside.music.mobile.mediascanner;
 
 import android.annotation.SuppressLint;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Environment;
-import android.os.storage.StorageManager;
-import android.os.storage.StorageVolume;
 import android.provider.MediaStore;
-
-import androidx.core.content.ContextCompat;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
@@ -22,7 +14,6 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.util.List;
 
@@ -54,9 +45,6 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
 
   private final ReactApplicationContext reactContext;
 
-  /** 【v40】U盘插拔广播接收器（随 catalyst 实例生命周期注册/注销） */
-  private BroadcastReceiver mountReceiver;
-
   MediaScannerModule(ReactApplicationContext reactContext) {
     super(reactContext);
     this.reactContext = reactContext;
@@ -65,81 +53,6 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
   @Override
   public String getName() {
     return "MediaScannerModule";
-  }
-
-  @Override
-  public void initialize() {
-    super.initialize();
-    registerMountReceiver();
-  }
-
-  @Override
-  public void onCatalystInstanceDestroy() {
-    super.onCatalystInstanceDestroy();
-    unregisterMountReceiver();
-  }
-
-  /**
-   * 【v40】监听 U 盘/SD 卡挂载与移除系统广播（受保护广播，仅系统可发，EXPORTED 安全），
-   * 向 JS 发送 localMediaMountChanged 事件 { mounted: boolean, path: string }，
-   * 用于插入 U 盘自动增量扫描、拔出时提示。
-   */
-  private void registerMountReceiver() {
-    try {
-      if (mountReceiver != null) return;
-      mountReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-          String action = intent.getAction();
-          if (action == null) return;
-          boolean mounted;
-          switch (action) {
-            case Intent.ACTION_MEDIA_MOUNTED:
-              mounted = true;
-              break;
-            case Intent.ACTION_MEDIA_EJECT:
-            case Intent.ACTION_MEDIA_UNMOUNTED:
-            case Intent.ACTION_MEDIA_REMOVED:
-              mounted = false;
-              break;
-            default:
-              return;
-          }
-          String path = null;
-          Uri data = intent.getData();
-          if (data != null) path = data.getPath();
-          if (mountReceiver == null) return;
-          WritableMap params = Arguments.createMap();
-          params.putBoolean("mounted", mounted);
-          params.putString("path", path);
-          try {
-            reactContext
-              .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-              .emit("localMediaMountChanged", params);
-          } catch (Exception ignored) {
-            // JS 侧未就绪时忽略，下次扫描会自动对齐
-          }
-        }
-      };
-      IntentFilter filter = new IntentFilter();
-      filter.addAction(Intent.ACTION_MEDIA_MOUNTED);
-      filter.addAction(Intent.ACTION_MEDIA_EJECT);
-      filter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
-      filter.addAction(Intent.ACTION_MEDIA_REMOVED);
-      ContextCompat.registerReceiver(reactContext, mountReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
-    } catch (Throwable ignored) {
-      // 广播注册失败只影响自动扫描，手动扫描不受影响
-    }
-  }
-
-  private void unregisterMountReceiver() {
-    try {
-      if (mountReceiver != null) {
-        reactContext.unregisterReceiver(mountReceiver);
-        mountReceiver = null;
-      }
-    } catch (Throwable ignored) {
-    }
   }
 
   /**
@@ -296,44 +209,6 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
         map.putString("path", folder);
         map.putInt("count", folders.get(folder));
         result.pushMap(map);
-      }
-      promise.resolve(result);
-    } catch (Exception err) {
-      promise.reject("SCAN_ERROR", err);
-    }
-  }
-
-  /**
-   * 【v40】列出当前已挂载的存储卷根路径（内置存储 + 已插入的 U 盘/SD 卡）。
-   * 返回: ["/storage/emulated/0", "/mnt/media_rw/XXXX", ...]
-   * 用途：U 盘拔出后，其路径不属于任何已挂载卷 —— 重扫时这类文件不参与
-   * 「已删除」判定，本地列表保留，重新插入后再增量合并。
-   */
-  @SuppressLint("Recycle")
-  @ReactMethod
-  public void getMountedRoots(final Promise promise) {
-    try {
-      Context context = reactContext;
-      WritableArray result = Arguments.createArray();
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        StorageManager sm = (StorageManager) context.getSystemService(Context.STORAGE_SERVICE);
-        if (sm != null) {
-          for (StorageVolume volume : sm.getStorageVolumes()) {
-            try {
-              if (!Environment.MEDIA_MOUNTED.equals(volume.getState())) continue;
-              java.io.File dir = volume.getDirectory();
-              if (dir != null) result.pushString(dir.getAbsolutePath());
-            } catch (Throwable ignored) {
-              // 单个卷状态读取失败不影响其他卷
-            }
-          }
-        }
-      } else {
-        // 旧版本：只有主存储一个概念
-        java.io.File external = Environment.getExternalStorageDirectory();
-        if (external != null && Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-          result.pushString(external.getAbsolutePath());
-        }
       }
       promise.resolve(result);
     } catch (Exception err) {

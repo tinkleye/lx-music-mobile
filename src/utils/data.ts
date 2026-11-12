@@ -1,4 +1,3 @@
-import { NativeModules, Dimensions } from 'react-native'
 import { getData, saveData, getAllKeys, removeDataMultiple, saveDataMultiple, removeData, getDataMultiple } from '@/plugins/storage'
 import { DEFAULT_SETTING, LIST_IDS, storageDataPrefix, type NAV_ID_Type } from '@/config/constant'
 import { throttle } from './common'
@@ -78,33 +77,6 @@ export const saveCarMode = async(enable: boolean) => {
 export const getCarUIScale = async() => (await getData<number>(carUIScaleKey) ?? 1.1)
 export const saveCarUIScale = async(scale: number) => {
   await saveData(carUIScaleKey, scale)
-}
-
-// 【v40】横屏显示：独立于「车机模式」的方向开关。
-// 原生侧存 SharedPreferences（MainActivity 启动第一帧前就要读，不能用 AsyncStorage），
-// 这里只做"未设置时的默认值判定 + 暴露给设置页"。
-// 默认值：车机（FEATURE_AUTOMOTIVE）或屏幕宽高比 > 2.4 → 横屏；否则竖屏。
-// 手机上默认竖屏，消除旧版"启动先横屏再转竖屏"的闪现。
-export const getLandscapeDisplay = async(): Promise<boolean> => {
-  try {
-    const utils = NativeModules.UtilsModule
-    const pref: string | null = await utils.getLandscapeDisplayPref()
-    if (pref === '1') return true
-    if (pref === '0') return false
-    // auto：车机设备优先判定；否则按屏幕比例
-    try {
-      if (await utils.isAutomotiveDevice()) return true
-    } catch {}
-    const { width, height } = Dimensions.get('window')
-    const w = Math.max(width, height)
-    const h = Math.min(width, height)
-    return h > 0 && (w / h) > 2.4
-  } catch {
-    return true
-  }
-}
-export const saveLandscapeDisplay = (enable: boolean) => {
-  NativeModules.UtilsModule.setLandscapeDisplay(enable)
 }
 
 // 【v34】本地音乐扫描排除列表（黑名单）：取消勾选的文件夹路径数组（空数组 = 全部显示）

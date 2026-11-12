@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { View, TouchableOpacity, Text as RNText, useWindowDimensions, NativeEventEmitter, NativeModules } from 'react-native'
+import { useState, useCallback, useEffect } from 'react'
+import { View, TouchableOpacity, useWindowDimensions } from 'react-native'
 
 // 【车机改造】本地音乐视图：固定显示「本地音乐」列表（listId 锁定，与我的列表互不干扰）
 // 【v33】新增：歌曲/专辑/歌手/文件夹 四种视图切换；扫描范围（指定文件夹，可多选）
@@ -17,7 +17,7 @@ import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import { createStyle, toast, getRowInfo } from '@/utils/tools'
 import { BorderWidths } from '@/theme'
-import { LOCAL_LIST_ID, scanLocalMusic, type ScanResult, type ScanProgress } from '@/core/music/localLibrary'
+import { LOCAL_LIST_ID, scanLocalMusic, type ScanResult } from '@/core/music/localLibrary'
 import { getListMusics } from '@/utils/listManage'
 import { getLocalScanExcluded, saveLocalScanExcluded } from '@/utils/data'
 import { playList } from '@/core/player/player'
@@ -48,9 +48,6 @@ export default () => {
   // 【v37】横屏列表列数：与歌单等页面一致，宽屏两列、窄屏单列
   const listColumns = isLandscape ? (getRowInfo().rowNum ?? 1) : 1
   const [isScanning, setIsScanning] = useState(false)
-  // 【v40】扫描状态条文本（null=不显示）：全程可见，不再让用户猜"搜完没有"
-  const [scanStatus, setScanStatus] = useState<string | null>(null)
-  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [viewMode, setViewMode] = useState<'songs' | GroupBy>('songs')
   const [musics, setMusics] = useState<LX.Music.MusicInfo[]>([])
   const [scanExcluded, setScanExcluded] = useState<string[]>([])
@@ -74,50 +71,11 @@ export default () => {
     void getLocalScanExcluded().then(setScanExcluded)
   }, [])
 
-  // 【v40】状态条文本：终态自动消失，进行中常驻
-  const showStatus = useCallback((text: string, autoHideMs = 0) => {
-    if (statusTimerRef.current) {
-      clearTimeout(statusTimerRef.current)
-      statusTimerRef.current = null
-    }
-    setScanStatus(text)
-    if (autoHideMs > 0) {
-      statusTimerRef.current = setTimeout(() => {
-        setScanStatus(null)
-        statusTimerRef.current = null
-      }, autoHideMs)
-    }
-  }, [])
-
-  useEffect(() => () => {
-    if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-  }, [])
-
-  // 【v40】扫描进度 → 状态条文本
-  const handleProgress = useCallback((p: ScanProgress) => {
-    switch (p.stage) {
-      case 'probing':
-        showStatus(t('local_music_scan_probing', { n: p.found ?? 0 }))
-        break
-      case 'reading':
-        showStatus(t('local_music_scan_reading', { current: p.current ?? 0, total: p.total ?? 0 }))
-        break
-      case 'done':
-        showStatus(t('local_music_scan_done_full', {
-          added: p.added ?? 0, removed: p.removed ?? 0, total: p.total ?? 0,
-        }), 5000)
-        break
-      case 'empty':
-        showStatus(t('local_music_scan_empty'), 5000)
-        break
-    }
-  }, [showStatus, t])
-
   const handleScan = useCallback(async() => {
     if (isScanning) return
     setIsScanning(true)
     try {
-      const result: ScanResult = await scanLocalMusic(handleProgress)
+      const result: ScanResult = await scanLocalMusic()
       if (result.err == 'permission') {
         toast(t('local_music_permission'), 'long')
       } else if (result.added == 0 && result.removed == 0) {
@@ -127,33 +85,10 @@ export default () => {
       }
     } catch (err: any) {
       toast(t('local_music_scan_fail'), 'long')
-      showStatus(t('local_music_scan_fail'), 5000)
     } finally {
       setIsScanning(false)
     }
-  }, [isScanning, t, handleProgress, showStatus])
-
-  // 【v40】U盘插拔监听：插入 → 提示 + 自动后台增量扫描（缓存命中，秒级完成）；
-  // 拔出 → 提示（列表保留，不清空）。autoScanRef 防抖：挂载后等系统索引稳定再扫。
-  const autoScanRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    const emitter = new NativeEventEmitter(NativeModules.MediaScannerModule)
-    const sub = emitter.addListener('localMediaMountChanged', (e: { mounted: boolean }) => {
-      if (autoScanRef.current) clearTimeout(autoScanRef.current)
-      if (e?.mounted) {
-        showStatus(t('local_music_usb_mounted'), 0)
-        autoScanRef.current = setTimeout(() => {
-          void handleScan()
-        }, 2000)
-      } else {
-        showStatus(t('local_music_usb_ejected'), 6000)
-      }
-    })
-    return () => {
-      sub.remove()
-      if (autoScanRef.current) clearTimeout(autoScanRef.current)
-    }
-  }, [handleScan, showStatus, t])
+  }, [isScanning, t])
 
   const handlePlay = useCallback((index: number) => {
     void playList(LOCAL_LIST_ID, index)
@@ -231,18 +166,9 @@ export default () => {
     ))
   )
 
-  // 【v40】扫描状态条：全程可见，让"搜完没有/是不是空的"一眼可判
-  const renderStatusBar = () => scanStatus == null ? null : (
-    <View style={styles.scanStatus}>
-      <RNText numberOfLines={1} style={{ ...styles.scanStatusText, color: theme['c-font-label'] }}>
-        {scanStatus}
-      </RNText>
-    </View>
-  )
-
-  // 【v39】不再画不透明底色：页面由 Home 的 PageContent 提供背景（主题背景图 /
-  // 勾选"使用动态背景"时的当前歌曲封面模糊图），画底色会把这些背景盖住
   return (
+    // 【v39】不再画不透明底色：页面由 Home 的 PageContent 提供背景（主题背景图 /
+    // 勾选"使用动态背景"时的当前歌曲封面模糊图），画底色会把这些背景盖住
     <View style={styles.container}>
       {
         isLandscape
@@ -269,7 +195,6 @@ export default () => {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.landContent}>
-                  {renderStatusBar()}
                   {renderContent()}
                 </View>
               </View>
@@ -294,7 +219,6 @@ export default () => {
                     </Text>
                   </TouchableOpacity>
                 </View>
-                {renderStatusBar()}
                 {renderContent()}
               </>
             )
@@ -377,13 +301,5 @@ const styles = createStyle({
   },
   landContent: {
     flex: 1,
-  },
-  // 【v40】扫描状态条
-  scanStatus: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  scanStatusText: {
-    fontSize: 12,
   },
 })
