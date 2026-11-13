@@ -46,11 +46,19 @@ export default () => {
   const roamDialogRef = useRef<DialogType>(null)
   const roamMode = settingState.setting['roam.mode']
 
-  const roamModeLabel = (mode: string) => {
+  // 【v44】漫游档位：大模块按钮用「标题 + 说明」两行展示
+  const roamModeTitle = (mode: string) => {
     switch (mode) {
-      case 'conservative': return t('roam_mode_conservative')
-      case 'explorative': return t('roam_mode_explorative')
-      default: return t('roam_mode_balanced')
+      case 'conservative': return t('roam_mode_conservative_title')
+      case 'explorative': return t('roam_mode_explorative_title')
+      default: return t('roam_mode_balanced_title')
+    }
+  }
+  const roamModeDesc = (mode: string) => {
+    switch (mode) {
+      case 'conservative': return t('roam_mode_conservative_desc')
+      case 'explorative': return t('roam_mode_explorative_desc')
+      default: return t('roam_mode_balanced_desc')
     }
   }
 
@@ -162,37 +170,49 @@ export default () => {
   return (
     <View style={styles.container} onLayout={handleLayout}>
       {renderBody()}
-      {/* 【v42】歌曲漫游：长按卡片弹出档位选择 */}
-      <Dialog ref={roamDialogRef} title={t('roam_title')} width={340}>
+      {/* 【v42】歌曲漫游：长按卡片弹出档位选择；【v44】大模块化横向布局方便车机点选 */}
+      <Dialog ref={roamDialogRef} title={t('roam_title')} width={430}>
         <View style={styles.roamBox}>
           <Text style={styles.roamDesc} size={12} color={theme['c-font-label']}>{t('roam_mode_tip')}</Text>
-          {(['conservative', 'balanced', 'explorative'] as const).map(mode => (
+          <View style={styles.roamModeRow}>
+            {(['conservative', 'balanced', 'explorative'] as const).map(mode => {
+              const active = roamMode == mode
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={{
+                    ...styles.roamModeBtn,
+                    backgroundColor: active ? theme['c-primary-background-active'] : theme['c-button-background'],
+                    borderColor: active ? theme['c-primary'] : 'transparent',
+                  }}
+                  onPress={() => { handleModeSelect(mode) }}
+                >
+                  <Text style={{ ...styles.roamModeTitle, color: active ? theme['c-primary-font'] : theme['c-button-font'] }}>
+                    {roamModeTitle(mode)}{active ? ` · ${t('roam_mode_current')}` : ''}
+                  </Text>
+                  <Text size={12} color={active ? theme['c-primary-font'] : theme['c-font-label']}>{roamModeDesc(mode)}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+          <View style={styles.roamActionRow}>
             <TouchableOpacity
-              key={mode}
-              style={{ ...styles.roamModeBtn, backgroundColor: roamMode == mode ? theme['c-primary-background-active'] : theme['c-button-background'] }}
-              onPress={() => { handleModeSelect(mode) }}
+              style={{ ...styles.roamActionBtn, backgroundColor: theme['c-button-background'] }}
+              onPress={() => { void nextRoamBatch() }}
             >
-              <Text style={{ color: roamMode == mode ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                {roamModeLabel(mode)}{roamMode == mode ? ` · ${t('roam_mode_current')}` : ''}
-              </Text>
+              <Text style={{ ...styles.roamActionText, color: theme['c-button-font'] }}>{t('roam_next_batch')}</Text>
             </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{ ...styles.roamModeBtn, backgroundColor: theme['c-button-background'] }}
-            onPress={() => { void nextRoamBatch() }}
-          >
-            <Text style={{ color: theme['c-button-font'] }}>{t('roam_next_batch')}</Text>
-          </TouchableOpacity>
-          {
-            getRoamState().active ? (
-              <TouchableOpacity
-                style={{ ...styles.roamModeBtn, backgroundColor: theme['c-button-background'] }}
-                onPress={handleEndRoam}
-              >
-                <Text style={{ color: theme['c-button-font'] }}>{t('roam_end')}</Text>
-              </TouchableOpacity>
-            ) : null
-          }
+            {
+              getRoamState().active ? (
+                <TouchableOpacity
+                  style={{ ...styles.roamActionBtn, backgroundColor: theme['c-button-background'] }}
+                  onPress={handleEndRoam}
+                >
+                  <Text style={{ ...styles.roamActionText, color: theme['c-button-font'] }}>{t('roam_end')}</Text>
+                </TouchableOpacity>
+              ) : null
+            }
+          </View>
         </View>
       </Dialog>
     </View>
@@ -247,15 +267,40 @@ const styles = createStyle({
   },
   roamBox: {
     paddingTop: 6,
-    gap: 10,
+    gap: 12,
   },
   roamDesc: {
     lineHeight: 18,
   },
+  roamModeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   roamModeBtn: {
-    borderRadius: 6,
-    paddingTop: 10,
-    paddingBottom: 10,
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 2,
+  },
+  roamModeTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  roamActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roamActionBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roamActionText: {
+    fontSize: 15,
   },
 })

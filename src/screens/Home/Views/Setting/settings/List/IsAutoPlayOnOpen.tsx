@@ -1,79 +1,46 @@
-import { useRef, useState } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { memo, useMemo } from 'react'
+import { View } from 'react-native'
 
 import SubTitle from '../../components/SubTitle'
-import Dialog, { type DialogType } from '@/components/common/Dialog'
-import { updateSetting } from '@/core/common'
-import { useI18n } from '@/lang'
+import CheckBox from '@/components/common/CheckBox'
 import { useSettingValue } from '@/store/setting/hook'
-import { useTheme } from '@/store/theme/hook'
+import { useI18n } from '@/lang'
+import { updateSetting } from '@/core/common'
 import { createStyle } from '@/utils/tools'
-import Text from '@/components/common/Text'
 
 type Mode = LX.AppSetting['list.isAutoPlayOnOpen']
 
+const LIST = [
+  { mode: 'off', name: 'setting_list_auto_play_off' },
+  { mode: 'first', name: 'setting_list_auto_play_first' },
+  { mode: 'random', name: 'setting_list_auto_play_random' },
+] as const
+
 /**
- * 【v42】打开歌单时自动起播：不自动 / 第一首 / 随机一首。
- * 车机模式下"不自动"会按"随机一首"兜底。
+ * 【v42】打开歌单自动播放：不自动 / 第一首 / 随机一首。
+ * 车机模式下"不自动"会按"随机一首"兜底（逻辑在 utils/autoPlayOnOpen.ts）。
+ * 【v44】改为平铺勾选单选（参考 DrawerLayoutPosition），去掉弹窗。
  */
-export default () => {
-  const t = useI18n()
-  const theme = useTheme()
-  const mode = useSettingValue('list.isAutoPlayOnOpen')
-  const [picked, setPicked] = useState<Mode>(mode)
-  const dialogRef = useRef<DialogType>(null)
-
-  const modeLabel = (m: Mode) => {
-    switch (m) {
-      case 'first': return t('setting_list_auto_play_first')
-      case 'random': return t('setting_list_auto_play_random')
-      default: return t('setting_list_auto_play_off')
-    }
-  }
-
-  return (
-    <SubTitle title={t('setting_list_auto_play')}>
-      <TouchableOpacity onPress={() => { setPicked(mode); dialogRef.current?.setVisible(true) }}>
-        <Text size={14} color={theme['c-primary-font']}>{modeLabel(mode)}</Text>
-      </TouchableOpacity>
-
-      <Dialog ref={dialogRef} title={t('setting_list_auto_play')} width={340}>
-        <View style={styles.optionBox}>
-          {(['off', 'first', 'random'] as const).map(m => (
-            <TouchableOpacity
-              key={m}
-              style={{ ...styles.optionBtn, backgroundColor: picked == m ? theme['c-primary-background-active'] : theme['c-button-background'] }}
-              onPress={() => { setPicked(m) }}
-            >
-              <Text style={{ color: picked == m ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                {modeLabel(m)}{picked == m ? ` · ${t('roam_mode_current')}` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-primary'] }}
-            onPress={() => {
-              updateSetting({ 'list.isAutoPlayOnOpen': picked })
-              dialogRef.current?.setVisible(false)
-            }}
-          >
-            <Text style={{ color: theme['c-primary-font'] }}>{t('confirm')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Dialog>
-    </SubTitle>
-  )
+const Item = ({ mode, label }: { mode: Mode, label: string }) => {
+  const isActive = useSettingValue('list.isAutoPlayOnOpen') == mode
+  return <CheckBox marginRight={8} check={isActive} label={label} onChange={() => { updateSetting({ 'list.isAutoPlayOnOpen': mode }) }} need />
 }
 
+export default memo(() => {
+  const t = useI18n()
+  const list = useMemo(() => LIST.map(item => ({ mode: item.mode, name: t(item.name) })), [t])
+  return (
+    <SubTitle title={t('setting_list_auto_play')}>
+      <View style={styles.list}>
+        {list.map(({ mode, name }) => <Item key={mode} mode={mode} label={name} />)}
+      </View>
+    </SubTitle>
+  )
+})
+
 const styles = createStyle({
-  optionBox: {
-    paddingTop: 6,
-    gap: 10,
-  },
-  optionBtn: {
-    borderRadius: 6,
-    paddingTop: 10,
-    paddingBottom: 10,
-    alignItems: 'center',
+  list: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
 })

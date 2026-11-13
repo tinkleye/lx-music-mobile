@@ -544,8 +544,8 @@
   "download_setting_concurrency": "同时下载任务数",
   "download_setting_concurrency_value": "{count} 个",
   "setting_download": "下载设置",
-  "setting_list_auto_play": "打开歌单时自动起播",
-  "setting_list_auto_play_off": "不自动播放（车机模式默认随机一首）",
+  "setting_list_auto_play": "打开歌单自动播放",
+  "setting_list_auto_play_off": "不自动播放",
   "setting_list_auto_play_first": "从第一首开始",
   "setting_list_auto_play_random": "随机一首开始",
   "user_api_detail_btn": "详情",
@@ -754,5 +754,12 @@
   "version_title_latest": "🎉 当前版本已是最新 🎊",
   "version_title_new": "🌟 发现新版本 🌟",
   "version_title_unknown": "❓ 获取最新版本信息失败 ❓",
-  "version_title_update": "🚀 软件更新 🚀"
+  "version_title_update": "🚀 软件更新 🚀",
+  "download_setting_dir_change": "更改目录",
+  "roam_mode_conservative_title": "保守",
+  "roam_mode_balanced_title": "均衡",
+  "roam_mode_explorative_title": "探索",
+  "roam_mode_conservative_desc": "80% 偏好",
+  "roam_mode_balanced_desc": "70% 偏好",
+  "roam_mode_explorative_desc": "50% 偏好"
 }

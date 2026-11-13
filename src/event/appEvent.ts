@@ -201,6 +201,21 @@ export class AppEvent extends Event {
   selectSyncMode(mode: LX.Sync.ModeType) {
     this.emit('selectSyncMode', mode)
   }
+
+  /**
+   * 【v44】竖屏本地音乐：切换歌曲下载页显示。
+   * 不带参数 = 取反，带布尔 = 指定显示状态。
+   */
+  toggleLocalDownload(show?: boolean) {
+    this.emit('toggleLocalDownload', show)
+  }
+
+  /**
+   * 【v44】下载页显示状态回报（LocalMusic → 标题栏按钮同步图标）。
+   */
+  localDownloadStateChanged(show: boolean) {
+    this.emit('localDownloadStateChanged', show)
+  }
 }
 
 

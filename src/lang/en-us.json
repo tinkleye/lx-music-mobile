@@ -545,7 +545,7 @@
   "download_setting_concurrency_value": "{count}",
   "setting_download": "Download settings",
   "setting_list_auto_play": "Auto play when opening a playlist",
-  "setting_list_auto_play_off": "Off (random in car mode)",
+  "setting_list_auto_play_off": "Off",
   "setting_list_auto_play_first": "Start from the first song",
   "setting_list_auto_play_random": "Start from a random song",
   "user_api_detail_btn": "Details",
@@ -754,5 +754,12 @@
   "version_title_latest": "🎉 The current version is already the latest 🎊",
   "version_title_new": "🌟 New version found 🌟",
   "version_title_unknown": "❓ Failed to get the latest version information ❓",
-  "version_title_update": "🚀 App update 🚀"
+  "version_title_update": "🚀 App update 🚀",
+  "download_setting_dir_change": "Change directory",
+  "roam_mode_conservative_title": "Conservative",
+  "roam_mode_balanced_title": "Balanced",
+  "roam_mode_explorative_title": "Explorative",
+  "roam_mode_conservative_desc": "80% preference",
+  "roam_mode_balanced_desc": "70% preference",
+  "roam_mode_explorative_desc": "50% preference"
 }

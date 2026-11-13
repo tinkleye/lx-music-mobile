@@ -118,24 +118,24 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
               : null
           }
           <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
+          {/* 【v44】查看详情 / 复制源地址 / 补充来源地址 移到「允许显示更新弹窗」同一行 */}
+          <TouchableOpacity style={styles.orderBtn} onPress={() => { onShowDetail(item) }}>
+            <Text size={11} color={theme['c-primary-font']}>{t('user_api_detail_btn')}</Text>
+          </TouchableOpacity>
+          {
+            item.sourceUrl ? (
+              <TouchableOpacity style={styles.orderBtn} onPress={() => { onCopyUrl(item) }}>
+                <Text size={11} color={theme['c-primary-font']}>{t('user_api_copy_url_btn')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.orderBtn} onPress={() => { onAddUrl(item) }}>
+                <Text size={11} color={theme['c-primary-font']}>{t('user_api_add_url_btn')}</Text>
+              </TouchableOpacity>
+            )
+          }
         </View>
       </View>
       <View style={styles.listItemRight}>
-        {/* 【v42】查看详情 / 复制源地址 / 补充来源地址 */}
-        <TouchableOpacity style={styles.btn} onPress={() => { onShowDetail(item) }}>
-          <Text size={11} color={theme['c-button-font']}>{t('user_api_detail_btn')}</Text>
-        </TouchableOpacity>
-        {
-          item.sourceUrl ? (
-            <TouchableOpacity style={styles.btn} onPress={() => { onCopyUrl(item) }}>
-              <Text size={11} color={theme['c-button-font']}>{t('user_api_copy_url_btn')}</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.btn} onPress={() => { onAddUrl(item) }}>
-              <Text size={11} color={theme['c-button-font']}>{t('user_api_add_url_btn')}</Text>
-            </TouchableOpacity>
-          )
-        }
         {
           // 【改造】记录了来源地址的源可以单独检查更新
           item.sourceUrl ? (

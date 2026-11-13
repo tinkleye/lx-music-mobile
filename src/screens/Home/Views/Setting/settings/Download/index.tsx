@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import { TextInput, TouchableOpacity, View } from 'react-native'
+import { TouchableOpacity, View } from 'react-native'
 
 import Section from '../../components/Section'
 import CheckBoxItem from '../../components/CheckBoxItem'
 import SubTitle from '../../components/SubTitle'
+import CheckBox from '@/components/common/CheckBox'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
 import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
@@ -12,7 +13,7 @@ import { createStyle } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import {
-  getDownloadDirCandidates,
+  getDownloadDirCandidatesGrouped,
   getDownloadDir,
   getQualityLabel,
   QUALITY_ORDER,
@@ -32,6 +33,8 @@ const displayPath = (p: string, storageLabel: string, usbLabel: string) => {
 
 /**
  * 【v43】下载设置：目录 / 音质 / 文件名 / 内嵌标签 / 附加文件 / 并发 / 换源。
+ * 【v44】音质 / 文件名 / 并发 改为平铺勾选（参考车友版），去掉弹窗；
+ *        目录改为「显示当前目录 + 更改目录按钮」，选择弹窗去自定义输入，内置/U盘分组展示。
  */
 export default () => {
   const t = useI18n()
@@ -49,28 +52,11 @@ export default () => {
 
   // 下载目录
   const dirDialogRef = useRef<DialogType>(null)
-  const [candidates, setCandidates] = useState<string[]>([])
-  const [pickedDir, setPickedDir] = useState('')
-  const [customDir, setCustomDir] = useState('')
+  const [dirGroups, setDirGroups] = useState<{ builtin: string[], usb: string[] }>({ builtin: [], usb: [] })
   const openDirDialog = () => {
-    const current = downloadDir || ''
-    setPickedDir(current)
-    setCustomDir(current)
     dirDialogRef.current?.setVisible(true)
-    void getDownloadDirCandidates().then(setCandidates)
+    void getDownloadDirCandidatesGrouped().then(setDirGroups)
   }
-
-  // 音质
-  const qualityDialogRef = useRef<DialogType>(null)
-  const [pickedQuality, setPickedQuality] = useState<LX.Quality | ''>(quality)
-
-  // 文件名
-  const nameDialogRef = useRef<DialogType>(null)
-  const [pickedName, setPickedName] = useState<LX.AppSetting['download.fileName']>(fileName)
-
-  // 并发
-  const concDialogRef = useRef<DialogType>(null)
-  const [pickedConc, setPickedConc] = useState(concurrency)
 
   const qualityLabel = (q: LX.Quality | '') => (q === '' ? t('download_setting_quality_auto') : getQualityLabel(q))
   const nameLabel = (n: LX.AppSetting['download.fileName']) => {
@@ -83,23 +69,52 @@ export default () => {
   // 当前生效目录（展示用）
   const currentDir = getDownloadDir()
 
+  const renderDirOption = (dir: string) => {
+    const active = dir == currentDir
+    return (
+      <TouchableOpacity
+        key={dir}
+        style={{ ...styles.optionBtn, backgroundColor: active ? theme['c-primary-background-active'] : theme['c-button-background'] }}
+        onPress={() => {
+          updateSetting({ 'download.dir': dir })
+          dirDialogRef.current?.setVisible(false)
+        }}
+      >
+        <Text style={{ color: active ? theme['c-primary-font'] : theme['c-button-font'] }}>
+          {displayPath(dir, t('local_music_storage'), t('local_music_usb'))}{active ? ` · ${t('roam_mode_current')}` : ''}
+        </Text>
+      </TouchableOpacity>
+    )
+  }
+
   return (
     <Section title={t('setting_download')}>
       <View style={styles.content}>
         {/* 下载目录 */}
         <SubTitle title={t('download_setting_dir')}>
-          <TouchableOpacity onPress={openDirDialog}>
-            <Text size={14} color={theme['c-primary-font']} numberOfLines={1}>
+          <View style={styles.dirRow}>
+            <Text size={13} color={theme['c-primary-font']} numberOfLines={1} style={styles.dirText}>
               {displayPath(currentDir, t('local_music_storage'), t('local_music_usb'))}
             </Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.dirChangeBtn} onPress={openDirDialog}>
+              <Text size={13} color={theme['c-primary']}>{t('download_setting_dir_change')}</Text>
+            </TouchableOpacity>
+          </View>
         </SubTitle>
 
-        {/* 默认下载音质 */}
+        {/* 默认下载音质：平铺勾选 */}
         <SubTitle title={t('download_setting_quality')}>
-          <TouchableOpacity onPress={() => { setPickedQuality(quality); qualityDialogRef.current?.setVisible(true) }}>
-            <Text size={14} color={theme['c-primary-font']}>{qualityLabel(quality)}</Text>
-          </TouchableOpacity>
+          <View style={styles.radioRow}>
+            {(['', ...QUALITY_ORDER] as Array<LX.Quality | ''>).map(q => (
+              <CheckBox
+                key={q}
+                check={quality == q}
+                label={qualityLabel(q)}
+                onChange={() => { updateSetting({ 'download.quality': q }) }}
+                need
+                marginRight={8} />
+            ))}
+          </View>
         </SubTitle>
         <CheckBoxItem
           check={isAskQuality}
@@ -107,11 +122,19 @@ export default () => {
           helpDesc={t('download_setting_ask_quality_desc')}
           onChange={val => { updateSetting({ 'download.isAskQuality': val }) }} />
 
-        {/* 文件名格式 */}
+        {/* 文件名格式：平铺勾选 */}
         <SubTitle title={t('download_setting_file_name')}>
-          <TouchableOpacity onPress={() => { setPickedName(fileName); nameDialogRef.current?.setVisible(true) }}>
-            <Text size={14} color={theme['c-primary-font']}>{nameLabel(fileName)}</Text>
-          </TouchableOpacity>
+          <View style={styles.radioRow}>
+            {FILE_NAME_OPTIONS.map(n => (
+              <CheckBox
+                key={n}
+                check={fileName == n}
+                label={nameLabel(n)}
+                onChange={() => { updateSetting({ 'download.fileName': n }) }}
+                need
+                marginRight={8} />
+            ))}
+          </View>
         </SubTitle>
 
         {/* 内嵌标签 */}
@@ -140,11 +163,19 @@ export default () => {
           helpDesc={t('download_setting_save_cover_desc')}
           onChange={val => { updateSetting({ 'download.isSaveCover': val }) }} />
 
-        {/* 并发数 */}
+        {/* 并发数：平铺勾选 1~6 */}
         <SubTitle title={t('download_setting_concurrency')}>
-          <TouchableOpacity onPress={() => { setPickedConc(concurrency); concDialogRef.current?.setVisible(true) }}>
-            <Text size={14} color={theme['c-primary-font']}>{t('download_setting_concurrency_value', { count: concurrency })}</Text>
-          </TouchableOpacity>
+          <View style={styles.radioRow}>
+            {CONCURRENCY_OPTIONS.map(num => (
+              <CheckBox
+                key={num}
+                check={concurrency == num}
+                label={`${num}`}
+                onChange={() => { updateSetting({ 'download.concurrency': num }) }}
+                need
+                marginRight={8} />
+            ))}
+          </View>
         </SubTitle>
 
         <CheckBoxItem
@@ -154,126 +185,33 @@ export default () => {
           onChange={val => { updateSetting({ 'download.isAutoToggleSource': val }) }} />
       </View>
 
-      {/* 下载目录选择 */}
-      <Dialog ref={dirDialogRef} title={t('download_setting_dir')} width={460}>
+      {/* 下载目录选择：内置 / U盘 分组，无自定义输入 */}
+      <Dialog ref={dirDialogRef} title={t('download_setting_dir')} width={430}>
         <View style={styles.optionBox}>
           {
-            candidates.map(dir => {
-              const sel = (customDir.trim() || pickedDir).trim()
-              const active = dir == (sel || getDownloadDir())
-              return (
-                <TouchableOpacity
-                  key={dir}
-                  style={{ ...styles.optionBtn, backgroundColor: active ? theme['c-primary-background-active'] : theme['c-button-background'] }}
-                  onPress={() => { setPickedDir(dir); setCustomDir('') }}
-                >
-                  <Text style={{ color: active ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                    {displayPath(dir, t('local_music_storage'), t('local_music_usb'))}{active ? ` · ${t('roam_mode_current')}` : ''}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })
+            dirGroups.builtin.length ? (
+              <>
+                <Text size={12} color={theme['c-font-label']}>{t('local_music_storage')}</Text>
+                {dirGroups.builtin.map(renderDirOption)}
+              </>
+            ) : null
           }
-          <Text size={12} color={theme['c-font-label']}>{t('download_setting_dir_custom')}</Text>
-          <TextInput
-            style={{ ...styles.input, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
-            value={customDir}
-            placeholder="/storage/emulated/0/Music/LX音乐"
-            placeholderTextColor={theme['c-font-label']}
-            onChangeText={text => { setCustomDir(text); setPickedDir(text) }}
-          />
+          {
+            dirGroups.usb.length ? (
+              <>
+                <Text size={12} color={theme['c-font-label']}>{t('local_music_usb')}</Text>
+                {dirGroups.usb.map(renderDirOption)}
+              </>
+            ) : null
+          }
           <TouchableOpacity
             style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
-            onPress={() => { setPickedDir(''); setCustomDir('') }}
-          >
-            <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_reset')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-primary'] }}
             onPress={() => {
-              updateSetting({ 'download.dir': (customDir.trim() || pickedDir).trim() })
+              updateSetting({ 'download.dir': '' })
               dirDialogRef.current?.setVisible(false)
             }}
           >
-            <Text style={{ color: theme['c-primary-font'] }}>{t('confirm')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Dialog>
-
-      {/* 默认音质选择 */}
-      <Dialog ref={qualityDialogRef} title={t('download_setting_quality')} width={320}>
-        <View style={styles.optionBox}>
-          {(['', ...QUALITY_ORDER] as Array<LX.Quality | ''>).map(q => (
-            <TouchableOpacity
-              key={q}
-              style={{ ...styles.optionBtn, backgroundColor: pickedQuality == q ? theme['c-primary-background-active'] : theme['c-button-background'] }}
-              onPress={() => { setPickedQuality(q) }}
-            >
-              <Text style={{ color: pickedQuality == q ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                {qualityLabel(q)}{pickedQuality == q ? ` · ${t('roam_mode_current')}` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-primary'] }}
-            onPress={() => {
-              updateSetting({ 'download.quality': pickedQuality })
-              qualityDialogRef.current?.setVisible(false)
-            }}
-          >
-            <Text style={{ color: theme['c-primary-font'] }}>{t('confirm')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Dialog>
-
-      {/* 文件名格式选择 */}
-      <Dialog ref={nameDialogRef} title={t('download_setting_file_name')} width={320}>
-        <View style={styles.optionBox}>
-          {FILE_NAME_OPTIONS.map(n => (
-            <TouchableOpacity
-              key={n}
-              style={{ ...styles.optionBtn, backgroundColor: pickedName == n ? theme['c-primary-background-active'] : theme['c-button-background'] }}
-              onPress={() => { setPickedName(n) }}
-            >
-              <Text style={{ color: pickedName == n ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                {nameLabel(n)}{pickedName == n ? ` · ${t('roam_mode_current')}` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-primary'] }}
-            onPress={() => {
-              updateSetting({ 'download.fileName': pickedName })
-              nameDialogRef.current?.setVisible(false)
-            }}
-          >
-            <Text style={{ color: theme['c-primary-font'] }}>{t('confirm')}</Text>
-          </TouchableOpacity>
-        </View>
-      </Dialog>
-
-      {/* 并发数选择 */}
-      <Dialog ref={concDialogRef} title={t('download_setting_concurrency')} width={320}>
-        <View style={styles.optionBox}>
-          {CONCURRENCY_OPTIONS.map(num => (
-            <TouchableOpacity
-              key={num}
-              style={{ ...styles.optionBtn, backgroundColor: pickedConc == num ? theme['c-primary-background-active'] : theme['c-button-background'] }}
-              onPress={() => { setPickedConc(num) }}
-            >
-              <Text style={{ color: pickedConc == num ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                {`${num}${pickedConc == num ? ` · ${t('roam_mode_current')}` : ''}`}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-primary'] }}
-            onPress={() => {
-              updateSetting({ 'download.concurrency': pickedConc })
-              concDialogRef.current?.setVisible(false)
-            }}
-          >
-            <Text style={{ color: theme['c-primary-font'] }}>{t('confirm')}</Text>
+            <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_reset')}</Text>
           </TouchableOpacity>
         </View>
       </Dialog>
@@ -295,11 +233,21 @@ const styles = createStyle({
     paddingBottom: 10,
     alignItems: 'center',
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
+  radioRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dirRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dirText: {
+    flex: 1,
+    marginRight: 10,
+  },
+  dirChangeBtn: {
+    paddingVertical: 4,
+    paddingLeft: 8,
   },
 })

@@ -149,6 +149,13 @@ export const getDownloadDir = () => {
   return (custom && custom.trim()) || getDirCandidates()[0]
 }
 
+/** 分组返回下载目录候选：内置存储 + U盘/外置卷（供设置页分组展示） */
+export const getDownloadDirCandidatesGrouped = async(): Promise<{ builtin: string[], usb: string[] }> => {
+  const all = await getDownloadDirCandidates()
+  const builtinCount = getDirCandidates().length
+  return { builtin: all.slice(0, builtinCount), usb: all.slice(builtinCount) }
+}
+
 /** 下载目录的展示用路径 */
 export const getDownloadDirLabel = () => {
   const custom = settingState.setting['download.dir']

@@ -59,6 +59,20 @@ export default () => {
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   // 【v43】歌曲下载页面开关：横屏右侧内容区 / 竖屏列表区切换
   const [showDownload, setShowDownload] = useState(false)
+  // 【v44】下载页状态引用（事件回调里避免闭包过期值）
+  const showDownloadRef = useRef(false)
+
+  // 【v44】顶部标题栏下载入口事件：切换下载页显示，并回报状态给标题栏按钮同步图标
+  useEffect(() => {
+    const onToggle = (show?: boolean) => {
+      const next = typeof show == 'boolean' ? show : !showDownloadRef.current
+      showDownloadRef.current = next
+      setShowDownload(next)
+      global.app_event.localDownloadStateChanged(next)
+    }
+    global.app_event.on('toggleLocalDownload', onToggle)
+    return () => { global.app_event.off('toggleLocalDownload', onToggle) }
+  }, [])
 
   // 分组视图需要列表数据：初始化 + 列表更新事件时刷新
   useEffect(() => {
@@ -293,17 +307,9 @@ export default () => {
               </View>
             )
           : (
-              // 【v43】竖屏：标题行（本地音乐 + 右侧下载入口）+ 一行 tabs + 操作按钮，歌曲上下滚动
+              // 【v44】竖屏：一行 tabs + 操作按钮，歌曲上下滚动。
+              // 标题「本地音乐」与下载入口已上移到顶部标题栏（Vertical/Header.tsx），此处不再重复。
               <>
-                <View style={{ ...styles.portTitleRow, borderBottomColor: theme['c-primary-light-100-alpha-200'] }}>
-                  <Text size={20} numberOfLines={1} style={{ ...styles.portTitle, color: theme['c-font'] }}>{t('nav_local')}</Text>
-                  <TouchableOpacity style={styles.downloadEntry} onPress={() => { setShowDownload(v => !v) }}>
-                    <Icon name={showDownload ? 'chevron-left' : 'download-2'} size={16} color={showDownload ? theme['c-primary'] : theme['c-font-label']} />
-                    <Text numberOfLines={1} style={{ ...styles.downloadEntryText, color: showDownload ? theme['c-primary'] : theme['c-font'] }}>
-                      {showDownload ? t('back') : t('download_entry')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
                 <View style={{ ...styles.header, borderBottomColor: theme['c-primary-light-100-alpha-200'] }}>
                   {renderPortraitTabs()}
                   <TouchableOpacity style={styles.actionBtn} onPress={() => { setShowFolderPicker(true) }}>
@@ -412,29 +418,5 @@ const styles = createStyle({
   },
   scanStatusText: {
     fontSize: 12,
-  },
-  // 【v43】竖屏标题行：本地音乐大标题 + 右侧下载入口
-  portTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 14,
-    paddingRight: 12,
-    paddingTop: 10,
-    paddingBottom: 10,
-    borderBottomWidth: BorderWidths.normal,
-  },
-  portTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  downloadEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 4,
-  },
-  downloadEntryText: {
-    fontSize: 13,
   },
 })

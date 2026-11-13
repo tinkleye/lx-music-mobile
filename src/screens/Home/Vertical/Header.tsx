@@ -14,9 +14,15 @@ import { scaleSizeH } from '@/utils/pixelRatio'
 import { HEADER_HEIGHT } from '@/config/constant'
 import { type InitState as CommonState } from '@/store/common/state'
 import SearchTypeSelector from '@/screens/Home/Views/Search/SearchTypeSelector'
+import LocalDownloadEntry from './LocalDownloadEntry'
+import { isCarModeEnabled } from '@/config/carMode'
 
+// 【v44】车机模式下，搜索页的「歌曲/歌单」切换已显示在搜索框那一行（HeaderBar），
+// 顶部标题栏这处去掉避免重复；非车机模式保持原版（标题栏显示切换）。
+// 本地音乐页：下载入口上移到标题栏右侧（LocalMusic 内部不再重复画标题）。
 const headerComponents: Partial<Record<CommonState['navActiveId'], React.ReactNode>> = {
-  nav_search: <SearchTypeSelector />,
+  ...(isCarModeEnabled() ? {} : { nav_search: <SearchTypeSelector /> }),
+  nav_local: <LocalDownloadEntry />,
 }
 
 
