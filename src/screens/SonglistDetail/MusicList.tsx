@@ -3,6 +3,7 @@ import OnlineList, { type OnlineListType, type OnlineListProps } from '@/compone
 import { clearListDetail, getListDetail, setListDetail, setListDetailInfo } from '@/core/songlist'
 import songlistState from '@/store/songlist/state'
 import { handlePlay } from './listAction'
+import { autoPlayOnListOpen } from '@/utils/autoPlayOnOpen'
 import Header, { type HeaderType } from './Header'
 import { useListInfo } from './state'
 
@@ -36,6 +37,10 @@ export default forwardRef<MusicListType, MusicListProps>(({ componentId }, ref) 
             imgUrl: info.img ?? listDetailInfo.info.img,
           })
         })
+        // 【v42】打开歌单自动起播（同一歌单一次运行只触发一次）
+        autoPlayOnListOpen(`songlist_${source}_${id}`, listDetailInfo.list, () => {
+          void handlePlay(id, source, listDetailInfo.list, 0)
+        })
       } else {
         listRef.current?.setStatus('loading')
         const page = 1
@@ -60,6 +65,10 @@ export default forwardRef<MusicListType, MusicListProps>(({ componentId }, ref) 
             })
             listRef.current?.setList(result.list)
             listRef.current?.setStatus(songlistState.listDetailInfo.maxPage <= page ? 'end' : 'idle')
+          })
+          // 【v42】打开歌单自动起播（同一歌单一次运行只触发一次）
+          autoPlayOnListOpen(`songlist_${source}_${id}`, result.list, () => {
+            void handlePlay(id, source, result.list, 0)
           })
         }).catch(() => {
           if (songlistState.listDetailInfo.list.length && page == 1) clearListDetail()

@@ -117,7 +117,7 @@ export const NAV_MENUS = [
   { id: 'nav_setting', icon: 'setting' },
 ] as const
 
-export type NAV_ID_Type = typeof NAV_MENUS[number]['id'] | 'nav_drive'
+export type NAV_ID_Type = typeof NAV_MENUS[number]['id'] | 'nav_drive' | 'nav_roam'
 
 export const LXM_FILE_EXT_RXP = ['json', 'lxmc', 'bin']
 export const USER_API_SOURCE_FILE_EXT_RXP = ['js']

@@ -357,6 +357,36 @@ declare global {
       'download.fileName': '歌名 - 歌手' | '歌手 - 歌名' | '歌名'
 
       /**
+       * 【v42】下载前总是询问音质
+       */
+      'download.isAskQuality': boolean
+
+      /**
+       * 【v42】下载并发数（1~6）
+       */
+      'download.concurrency': number
+
+      /**
+       * 【v42】下载取不到目标音质时自动换源/降级
+       */
+      'download.isAutoToggleSource': boolean
+
+      /**
+       * 【v42】打开歌单时自动起播：off 不自动 / first 第一首 / random 随机一首
+       */
+      'list.isAutoPlayOnOpen': 'off' | 'first' | 'random'
+
+      /**
+       * 【v42】歌曲漫游风格浓度：conservative 保守 / balanced 均衡 / explorative 探索
+       */
+      'roam.mode': 'conservative' | 'balanced' | 'explorative'
+
+      /**
+       * 【v42】不参与漫游的歌单 id 列表
+       */
+      'roam.excludedLists': string[]
+
+      /**
        * 是否启用同步
        */
       'sync.enable': boolean

@@ -1,6 +1,7 @@
 const defaultSetting: LX.AppSetting = {
   version: '2.1',
-  'common.isAutoTheme': false,
+  // 【v42】跟随系统亮、暗模式切换主题：新安装默认开启
+  'common.isAutoTheme': true,
   'common.langId': null,
   'common.apiSource': '',
   'common.sourceNameType': 'alias',
@@ -69,6 +70,8 @@ const defaultSetting: LX.AppSetting = {
   'list.isShowInterval': true,
   'list.isSaveScrollLocation': true,
   'list.addMusicLocationType': 'top',
+  // 【v42】打开歌单时自动起播：off / first / random（车机模式运行时按"随机"兜底）
+  'list.isAutoPlayOnOpen': 'off',
 
   'download.fileName': '歌名 - 歌手',
 
@@ -78,9 +81,19 @@ const defaultSetting: LX.AppSetting = {
   'theme.id': 'black',
   'theme.lightId': 'green',
   'theme.darkId': 'black',
-  'theme.hideBgDark': false,
-  'theme.dynamicBg': false,
+  // 【v42】隐藏黑色主题背景、动态背景：新安装默认开启
+  'theme.hideBgDark': true,
+  'theme.dynamicBg': true,
   'theme.fontShadow': false,
+
+  // 【v42】下载外壳设置项
+  'download.isAskQuality': false,
+  'download.concurrency': 3,
+  'download.isAutoToggleSource': true,
+
+  // 【v42】歌曲漫游
+  'roam.mode': 'balanced',
+  'roam.excludedLists': [],
 }
 
 

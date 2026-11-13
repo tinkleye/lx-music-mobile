@@ -11,6 +11,7 @@ import { View, TouchableOpacity, Text as RNText, useWindowDimensions, NativeEven
 //        全部移到左侧控制栏纵向排列，歌曲/专辑/歌手/文件夹列表全部左右翻页、不上下滚动。
 // 注意：createStyle 等工具函数必须显式导入（v31 崩溃教训）
 import { useI18n } from '@/lang'
+import type { Message } from '@/lang'
 import { Icon } from '@/components/common/Icon'
 import IconIon from '@/components/common/IconIon'
 import Text from '@/components/common/Text'
@@ -24,6 +25,8 @@ import { playList } from '@/core/player/player'
 import MusicList from '../Mylist/MusicList'
 import GroupView, { type GroupBy } from './GroupView'
 import FolderPickerModal from './FolderPickerModal'
+import DownloadTaskPanel from '@/components/DownloadTaskPanel'
+import Dialog from '@/components/common/Dialog'
 
 // 【v38】横屏控制栏上下分组：视图入口组贴顶、扫描操作组贴底，中间弹性留白；
 // 视图入口配图标（歌曲=musical-notes 音符[Ionicons]、专辑=album 唱片、
@@ -33,7 +36,7 @@ import FolderPickerModal from './FolderPickerModal'
 type TabIcon =
   | { set: 'app', name: 'album' | 'leaderboard' | 'sd-card' }
   | { set: 'ion', name: 'musical-notes' }
-const VIEW_TABS: { id: 'songs' | GroupBy, labelKey: string, icon: TabIcon | null }[] = [
+const VIEW_TABS: { id: 'songs' | GroupBy, labelKey: keyof Message, icon: TabIcon | null }[] = [
   { id: 'songs', labelKey: 'local_music_view_songs', icon: { set: 'ion', name: 'musical-notes' } },
   { id: 'album', labelKey: 'local_music_view_album', icon: { set: 'app', name: 'album' } },
   { id: 'singer', labelKey: 'local_music_view_singer', icon: { set: 'app', name: 'leaderboard' } },
@@ -239,6 +242,7 @@ export default () => {
       </RNText>
     </View>
   )
+  const downloadPanelRef = useRef<InstanceType<typeof Dialog>>(null)
 
   // 【v39】不再画不透明底色：页面由 Home 的 PageContent 提供背景（主题背景图 /
   // 勾选"使用动态背景"时的当前歌曲封面模糊图），画底色会把这些背景盖住
@@ -250,9 +254,11 @@ export default () => {
               // 【v37】横屏：左侧控制栏 + 右侧翻页列表。
               // 【v38】上下两组：视图入口组贴顶、扫描操作组贴底，中间弹性留白隔开
               <View style={styles.landRow}>
-                <View style={{ ...styles.sideCol, borderRightColor: theme['c-border'] }}>
+                <View style={{ ...styles.sideCol, borderRightColor: theme['c-primary-light-100-alpha-200'] }}>
                   {renderLandscapeTabs()}
                   <View style={styles.sideGap} />
+                  {/* 【v42】下载任务面板：视图组之下、扫描组之上 */}
+                  <DownloadTaskPanel />
                   <TouchableOpacity style={styles.sideItem} onPress={() => { setShowFolderPicker(true) }}>
                     <Icon name="add_folder" size={16} color={theme['c-primary']} />
                     <Text numberOfLines={1} style={{ ...styles.sideText, color: theme['c-primary'] }}>
@@ -277,7 +283,7 @@ export default () => {
           : (
               // 竖屏：保持现有布局（顶部一行 tabs + 操作按钮），歌曲上下滚动
               <>
-                <View style={{ ...styles.header, borderBottomColor: theme['c-border'] }}>
+                <View style={{ ...styles.header, borderBottomColor: theme['c-primary-light-100-alpha-200'] }}>
                   {renderPortraitTabs()}
                   <TouchableOpacity style={styles.actionBtn} onPress={() => { setShowFolderPicker(true) }}>
                     <Icon name="add_folder" size={16} color={theme['c-primary']} />
@@ -293,6 +299,10 @@ export default () => {
                       {isScanning ? t('local_music_scanning') : t('local_music_scan')}
                     </Text>
                   </TouchableOpacity>
+                  {/* 【v42】竖屏下载任务入口：标题行最右侧 */}
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => { downloadPanelRef.current?.setVisible(true) }}>
+                    <Icon name="download-2" size={16} color={theme['c-primary']} />
+                  </TouchableOpacity>
                 </View>
                 {renderStatusBar()}
                 {renderContent()}
@@ -303,6 +313,12 @@ export default () => {
         visible={showFolderPicker}
         excluded={scanExcluded}
         onClose={handleFoldersConfirm} />
+      {/* 【v42】竖屏下载任务面板弹层 */}
+      <Dialog ref={downloadPanelRef} title={t('download_task_dialog_title')} width={420}>
+        <View style={styles.panelBox}>
+          <DownloadTaskPanel />
+        </View>
+      </Dialog>
     </View>
   )
 }
@@ -385,5 +401,9 @@ const styles = createStyle({
   },
   scanStatusText: {
     fontSize: 12,
+  },
+  // 【v42】竖屏下载面板弹层
+  panelBox: {
+    height: 300,
   },
 })

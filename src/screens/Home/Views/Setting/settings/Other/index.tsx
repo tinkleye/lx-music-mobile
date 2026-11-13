@@ -4,6 +4,7 @@ import Section from '../../components/Section'
 import ResourceCache from './ResourceCache'
 import MetaCache from './MetaCache'
 import DislikeList from './DislikeList'
+import BlockList from './BlockList'
 import Log from './Log'
 // import MaxCache from './MaxCache'
 import { useI18n } from '@/lang'
@@ -16,6 +17,7 @@ export default memo(() => {
       <ResourceCache />
       <MetaCache />
       <DislikeList />
+      <BlockList />
       <Log />
       {/* <MaxCache /> */}
     </Section>

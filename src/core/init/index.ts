@@ -15,6 +15,9 @@ import { checkUpdate } from '@/core/version'
 import { bootLog } from '@/utils/bootLog'
 import { applyFullscreenSetting } from '@/core/fullscreen'
 import { checkUserApiUpdates } from '@/core/userApi'
+import { initBlockRules } from '@/core/blockList'
+import { initDownloadQueue } from '@/core/downloadQueue'
+import { initRoam } from '@/core/roam'
 import { cheatTip, toast } from '@/utils/tools'
 
 let isFirstPush = true
@@ -65,6 +68,12 @@ export default async() => {
   bootLog('Data inited.')
   await initCommonState(setting)
   bootLog('Common State inited.')
+
+  // 【v42】屏蔽规则 / 下载队列（重启续排）/ 歌曲漫游状态
+  await initBlockRules()
+  await initDownloadQueue()
+  await initRoam()
+  bootLog('Block/Download/Roam inited.')
 
   void initSync(setting)
   bootLog('Sync inited.')

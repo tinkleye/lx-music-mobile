@@ -24,10 +24,12 @@ import { requestMsg } from '@/utils/message'
 import { getRandom } from '@/utils/common'
 import { filterList } from './utils'
 import BackgroundTimer from 'react-native-background-timer'
-import { checkIgnoringBatteryOptimization, checkNotificationPermission, debounceBackgroundTimer } from '@/utils/tools'
+import { checkIgnoringBatteryOptimization, checkNotificationPermission, debounceBackgroundTimer, toast } from '@/utils/tools'
 import { LIST_IDS } from '@/config/constant'
 import { addListMusics, removeListMusics } from '@/core/list'
 import { addDislikeInfo } from '@/core/dislikeList'
+import { isBlockedMusic, addBlockSinger } from '@/core/blockList'
+import { getMusicQualityFallback, clearQualityFallback } from '@/core/music/qualityFallback'
 
 // import { checkMusicFileAvailable } from '@renderer/utils/music'
 
@@ -93,7 +95,7 @@ const delayRetry = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, i
     }
   })
 }
-const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, isRetryed = false): Promise<string | null> => {
+const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListItem, isRefresh = false, isRetryed = false, qualityOverride?: LX.Quality): Promise<string | null> => {
   // this.musicInfo.url = await getMusicPlayUrl(targetSong, type)
   setStatusText(global.i18n.t('player__getting_url'))
   addLoadTimeout()
@@ -103,11 +105,13 @@ const getMusicPlayUrl = async(musicInfo: LX.Music.MusicInfo | LX.Download.ListIt
 
   return (toggleMusicInfo ? getMusicUrl({
     musicInfo: toggleMusicInfo,
+    quality: qualityOverride,
     isRefresh,
     allowToggleSource: false,
   }) : Promise.reject(new Error('not found'))).catch(async() => {
     return getMusicUrl({
       musicInfo,
+      quality: qualityOverride,
       isRefresh,
       onToggleSource(mInfo) {
         if (diffCurrentMusicInfo(musicInfo)) return
@@ -139,9 +143,28 @@ export const setMusicUrl = (musicInfo: LX.Music.MusicInfo | LX.Download.ListItem
   global.lx.gettingUrlId = createGettingUrlId(musicInfo)
   void getMusicPlayUrl(musicInfo, isRefresh).then((url) => {
     if (!url) return
+    clearQualityFallback(musicInfo)
     setResource(musicInfo, url, playerState.progress.nowPlayTime)
   }).catch((err: any) => {
     console.log(err)
+    // 【v42】播放失败自动恢复：重试链走完仍失败，降一档音质再试一次；
+    // 降级成功直接续播，仍失败才走原有的错误提示 + 5 秒后自动下一曲
+    const fallbackQuality = getMusicQualityFallback(musicInfo)
+    if (fallbackQuality) {
+      setStatusText(global.i18n.t('player__url_fallback_quality', {
+        quality: fallbackQuality.label,
+      }))
+      void getMusicPlayUrl(musicInfo, true, false, fallbackQuality.quality).then((fallbackUrl) => {
+        if (!fallbackUrl) return
+        setResource(musicInfo, fallbackUrl, playerState.progress.nowPlayTime)
+        toast(global.i18n.t('player__url_fallback_done', { quality: fallbackQuality.label }))
+      }).catch(() => {
+        setStatusText(err.message as string)
+        global.app_event.error()
+        addDelayNextTimeout()
+      })
+      return
+    }
     setStatusText(err.message as string)
     global.app_event.error()
     addDelayNextTimeout()
@@ -225,6 +248,9 @@ const debouncePlay = debounceBackgroundTimer((musicInfo: LX.Player.PlayMusic) =>
   })
 }, 200)
 
+// 【v42】屏蔽自动跳歌计数：防止整表被屏蔽时无限递归
+let blockedSkipCount = 0
+
 // 处理音乐播放
 const handlePlay = async() => {
   if (!isInitialized()) {
@@ -252,6 +278,21 @@ const handlePlay = async() => {
   const musicInfo = playMusicInfo.musicInfo
 
   if (!musicInfo) return
+
+  // 【v42】屏蔽拦截：手动点播被屏蔽歌曲（歌手/关键词命中）时自动切下一首可播放歌曲
+  if (!('progress' in musicInfo) && isBlockedMusic(musicInfo)) {
+    blockedSkipCount++
+    if (blockedSkipCount > 30) {
+      blockedSkipCount = 0
+      toast(global.i18n.t('block_list_all_blocked'))
+      await handleToggleStop()
+      return
+    }
+    toast(global.i18n.t('block_list_skip_tip'))
+    await playNext(true)
+    return
+  }
+  blockedSkipCount = 0
 
   await setStop()
   global.app_event.pause()
@@ -663,6 +704,16 @@ export const dislikeMusic = async() => {
   if (!playerState.playMusicInfo.musicInfo) return
   const minfo = 'progress' in playerState.playMusicInfo.musicInfo ? playerState.playMusicInfo.musicInfo.metadata.musicInfo : playerState.playMusicInfo.musicInfo
   await addDislikeInfo([{ name: minfo.name, singer: minfo.singer }])
+  await playNext(true)
+}
+
+/**
+ * 【v42】屏蔽当前播放歌曲的歌手（含合唱，歌单不删），并自动切下一首
+ */
+export const blockCurrentSinger = async() => {
+  if (!playerState.playMusicInfo.musicInfo) return
+  const minfo = 'progress' in playerState.playMusicInfo.musicInfo ? playerState.playMusicInfo.musicInfo.metadata.musicInfo : playerState.playMusicInfo.musicInfo
+  await addBlockSinger(minfo.singer ?? '')
   await playNext(true)
 }
 

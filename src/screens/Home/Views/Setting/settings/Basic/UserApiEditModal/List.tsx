@@ -1,19 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Clipboard, TextInput, View, TouchableOpacity, ScrollView } from 'react-native'
 import Text from '@/components/common/Text'
-import { View, TouchableOpacity, ScrollView } from 'react-native'
+import Dialog, { type DialogType } from '@/components/common/Dialog'
 import { confirmDialog, createStyle, toast } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import { useUserApiList, state as userApiState } from '@/store/userApi'
 import { useSettingValue } from '@/store/setting/hook'
-import { checkUserApiUpdate, removeUserApi, setUserApiAllowShowUpdateAlert } from '@/core/userApi'
+import { checkUserApiUpdate, removeUserApi, setUserApiAllowShowUpdateAlert, updateUserApi } from '@/core/userApi'
 import { BorderRadius } from '@/theme'
 import CheckBox from '@/components/common/CheckBox'
 import { Icon } from '@/components/common/Icon'
 import settingState from '@/store/setting/state'
 import apiSourceInfo from '@/utils/musicSdk/api-source-info'
 import { setApiSource } from '@/core/apiSource'
-import { getUserApiFallbacks, setUserApiFallbacks } from '@/utils/data'
+import { getUserApiFallbacks, setUserApiFallbacks, getUserApiScript } from '@/utils/data'
 import { isCarModeEnabled } from '@/config/carMode'
 
 // 【改造】车机横屏下行高紧张，列表项排版更紧凑
@@ -22,7 +23,7 @@ const carMode = isCarModeEnabled()
 const formatVersionName = (version: string) => {
   return /^\d/.test(version) ? `v${version}` : version
 }
-const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRemove, onChangeAllowShowUpdateAlert, onCheckUpdate, onToggleFallback, onMoveFallback }: {
+const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRemove, onChangeAllowShowUpdateAlert, onCheckUpdate, onToggleFallback, onMoveFallback, onCopyUrl, onAddUrl, onShowDetail }: {
   item: LX.UserApi.UserApiInfo
   activeId: string
   checking: boolean
@@ -33,6 +34,9 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
   onCheckUpdate: (id: string) => void
   onToggleFallback: (id: string, enabled: boolean) => void
   onMoveFallback: (id: string, offset: number) => void
+  onCopyUrl: (item: LX.UserApi.UserApiInfo) => void
+  onAddUrl: (item: LX.UserApi.UserApiInfo) => void
+  onShowDetail: (item: LX.UserApi.UserApiInfo) => void
 }) => {
   const theme = useTheme()
   const t = useI18n()
@@ -74,10 +78,13 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
         }
         {
           // 【改造】显示记录下来的来源地址，方便确认自动更新是否生效
+          // 【v42】点击来源地址 = 复制
           item.sourceUrl ? (
-            <Text size={11} color={theme['c-font-label']} numberOfLines={1}>
-              {t('user_api_source_url', { url: item.sourceUrl })}
-            </Text>
+            <TouchableOpacity onPress={() => { onCopyUrl(item) }}>
+              <Text size={11} color={theme['c-font-label']} numberOfLines={1}>
+                {t('user_api_source_url', { url: item.sourceUrl })}
+              </Text>
+            </TouchableOpacity>
           ) : null
         }
         {/* 【改造】备用源勾选、「主源」标记、「允许更新提示」合并在同一行，省出行高给源列表 */}
@@ -114,6 +121,21 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
         </View>
       </View>
       <View style={styles.listItemRight}>
+        {/* 【v42】查看详情 / 复制源地址 / 补充来源地址 */}
+        <TouchableOpacity style={styles.btn} onPress={() => { onShowDetail(item) }}>
+          <Text size={11} color={theme['c-button-font']}>{t('user_api_detail_btn')}</Text>
+        </TouchableOpacity>
+        {
+          item.sourceUrl ? (
+            <TouchableOpacity style={styles.btn} onPress={() => { onCopyUrl(item) }}>
+              <Text size={11} color={theme['c-button-font']}>{t('user_api_copy_url_btn')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.btn} onPress={() => { onAddUrl(item) }}>
+              <Text size={11} color={theme['c-button-font']}>{t('user_api_add_url_btn')}</Text>
+            </TouchableOpacity>
+          )
+        }
         {
           // 【改造】记录了来源地址的源可以单独检查更新
           item.sourceUrl ? (
@@ -222,7 +244,46 @@ export default () => {
     }
   }, [checkingId, t])
 
+  // 【v42】复制源地址 / 补充来源地址 / 查看详情
+  const [detailItem, setDetailItem] = useState<LX.UserApi.UserApiInfo | null>(null)
+  const [addUrlItem, setAddUrlItem] = useState<LX.UserApi.UserApiInfo | null>(null)
+  const [urlInput, setUrlInput] = useState('')
+  const addUrlDialogRef = useRef<DialogType>(null)
+  const detailDialogRef = useRef<DialogType>(null)
+
+  const handleCopyUrl = useCallback((item: LX.UserApi.UserApiInfo) => {
+    if (!item.sourceUrl) return
+    Clipboard.setString(item.sourceUrl)
+    toast(t('user_api_url_copied'))
+  }, [t])
+
+  const handleShowDetail = useCallback((item: LX.UserApi.UserApiInfo) => {
+    setDetailItem(item)
+    requestAnimationFrame(() => { detailDialogRef.current?.setVisible(true) })
+  }, [])
+
+  const handleShowAddUrl = useCallback((item: LX.UserApi.UserApiInfo) => {
+    setAddUrlItem(item)
+    setUrlInput('')
+    requestAnimationFrame(() => { addUrlDialogRef.current?.setVisible(true) })
+  }, [])
+
+  const handleSaveAddUrl = useCallback(async() => {
+    if (!addUrlItem) return
+    const url = urlInput.trim()
+    if (!url) return
+    try {
+      const script = await getUserApiScript(addUrlItem.id)
+      await updateUserApi(addUrlItem.id, script, url)
+      toast(t('user_api_url_saved'))
+    } catch (err) {
+      toast(t('user_api_url_save_failed'), 'long')
+    }
+    addUrlDialogRef.current?.setVisible(false)
+  }, [addUrlItem, urlInput, t])
+
   return (
+    <>
     <ScrollView style={styles.scrollView} keyboardShouldPersistTaps={'always'}>
       <View onStartShouldSetResponder={() => true}>
         {
@@ -241,6 +302,9 @@ export default () => {
                 onCheckUpdate={handleCheckUpdate}
                 onToggleFallback={handleToggleFallback}
                 onMoveFallback={handleMoveFallback}
+                onCopyUrl={handleCopyUrl}
+                onAddUrl={handleShowAddUrl}
+                onShowDetail={handleShowDetail}
               />
               )
             })
@@ -253,11 +317,71 @@ export default () => {
           : null
       }
     </ScrollView>
+    {/* 【v42】查看详情 */}
+    <Dialog ref={detailDialogRef} title={t('user_api_detail_btn')} width={420}>
+      {
+        detailItem ? (
+          <View style={styles.detailBox}>
+            <Text size={14}>{detailItem.name}{detailItem.version ? `  v${detailItem.version}` : ''}</Text>
+            {detailItem.author ? <Text size={12} color={theme['c-font-label']}>{`${t('user_api_detail_author')}: ${detailItem.author}`}</Text> : null}
+            {detailItem.description ? <Text size={12} color={theme['c-font-label']}>{detailItem.description}</Text> : null}
+            <Text size={12} color={theme['c-font-label']}>{`${t('user_api_detail_import_type')}: ${detailItem.sourceUrl ? t('user_api_detail_import_online') : t('user_api_detail_import_local')}`}</Text>
+            {
+              detailItem.sourceUrl ? (
+                <TouchableOpacity onPress={() => { handleCopyUrl(detailItem) }}>
+                  <Text size={12} color={theme['c-primary-font']}>{`${t('user_api_detail_source_url')}: ${detailItem.sourceUrl}`}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text size={12} color={theme['c-font-label']}>{t('user_api_detail_none_url')}</Text>
+              )
+            }
+          </View>
+        ) : null
+      }
+    </Dialog>
+    {/* 【v42】补充来源地址 */}
+    <Dialog ref={addUrlDialogRef} title={t('user_api_add_url_btn')} width={420}>
+      <View style={styles.detailBox}>
+        <Text size={12} color={theme['c-font-label']}>{t('user_api_add_url_tip')}</Text>
+        <TextInput
+          style={{ ...styles.urlInput, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
+          value={urlInput}
+          onChangeText={setUrlInput}
+          placeholder="https://"
+          placeholderTextColor={theme['c-300']}
+          autoCapitalize="none"
+        />
+        <TouchableOpacity style={styles.urlSaveBtn} onPress={() => { void handleSaveAddUrl() }}>
+          <Text size={13} color={theme['c-primary-font']}>{t('confirm')}</Text>
+        </TouchableOpacity>
+      </View>
+    </Dialog>
+    </>
   )
 }
 
 
 const styles = createStyle({
+  detailBox: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
+    fontSize: 13,
+  },
+  urlSaveBtn: {
+    alignSelf: 'flex-end',
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingLeft: 14,
+    paddingRight: 14,
+  },
   scrollView: {
     paddingHorizontal: 7,
     flexGrow: 0,

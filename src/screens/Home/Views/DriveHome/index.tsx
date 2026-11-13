@@ -1,11 +1,16 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { TouchableOpacity, View, type LayoutChangeEvent } from 'react-native'
 import PagerView, { type PagerViewOnPageSelectedEvent } from 'react-native-pager-view'
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
+import Dialog, { type DialogType } from '@/components/common/Dialog'
 import { useTheme } from '@/store/theme/hook'
-import { createStyle } from '@/utils/tools'
-import { setNavActiveId } from '@/core/common'
+import { createStyle, toast } from '@/utils/tools'
+import { setNavActiveId, updateSetting } from '@/core/common'
+import { startRoam, endRoam, getRoamState, nextRoamBatch } from '@/core/roam'
+import settingState from '@/store/setting/state'
+import { useI18n } from '@/lang'
+import type { Message } from '@/lang'
 import type { InitState as CommonState } from '@/store/common/state'
 
 // 【车机改造】驾驶首页：大卡片入口，防眩光、盲操作友好
@@ -14,7 +19,7 @@ import type { InitState as CommonState } from '@/store/common/state'
 // 横屏 3列×2行 / 竖屏 2列×3行 正好铺满一屏不滚动；图标与文字随容器缩放。
 // 超过一页（6 个）时用 PagerView 左右滑动翻页（参考歌单横向翻页逻辑），
 // 并在底部显示分页指示点。
-type CardItem = { id: CommonState['navActiveId'], icon: string, labelKey: string }
+type CardItem = { id: CommonState['navActiveId'], icon: string, labelKey: keyof Message }
 
 const CARDS: CardItem[] = [
   { id: 'nav_songlist', icon: 'album', labelKey: 'nav_songlist' },
@@ -22,6 +27,7 @@ const CARDS: CardItem[] = [
   { id: 'nav_love', icon: 'love', labelKey: 'nav_love' },
   { id: 'nav_top', icon: 'leaderboard', labelKey: 'nav_top' },
   { id: 'nav_search', icon: 'search-2', labelKey: 'nav_search' },
+  { id: 'nav_roam', icon: 'list-random', labelKey: 'nav_roam' },
   { id: 'nav_setting', icon: 'setting', labelKey: 'nav_setting' },
 ]
 
@@ -34,8 +40,19 @@ const onPageSelected = (setPage: (n: number) => void) => (e: PagerViewOnPageSele
 
 export default () => {
   const theme = useTheme()
+  const t = useI18n()
   const [page, setPage] = useState(0)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  const roamDialogRef = useRef<DialogType>(null)
+  const roamMode = settingState.setting['roam.mode']
+
+  const roamModeLabel = (mode: string) => {
+    switch (mode) {
+      case 'conservative': return t('roam_mode_conservative')
+      case 'explorative': return t('roam_mode_explorative')
+      default: return t('roam_mode_balanced')
+    }
+  }
 
   const handleLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout
@@ -59,6 +76,26 @@ export default () => {
 
   // 【v41】显式分行渲染：不再依赖 flexWrap 折行（wrap 在低密度屏上会因
   // 取整误差把最后一张卡挤到下一行），每行固定 columns 张，物理上不可能换行错乱
+  // 【v42】歌曲漫游：点击卡片 = 开始漫游 / 换一批；长按 = 档位选择与结束漫游
+  const isRoamCard = (id: string) => id == 'nav_roam'
+
+  const handleRoamPress = () => {
+    void startRoam()
+  }
+
+  const handleModeSelect = (mode: 'conservative' | 'balanced' | 'explorative') => {
+    void updateSetting({ 'roam.mode': mode })
+    toast(t('roam_mode_changed_tip'))
+    roamDialogRef.current?.setVisible(false)
+    void startRoam()
+  }
+
+  const handleEndRoam = () => {
+    void endRoam()
+    toast(t('roam_ended_tip'))
+    roamDialogRef.current?.setVisible(false)
+  }
+
   const renderGrid = (cards: CardItem[]) => {
     const gridRows: CardItem[][] = []
     for (let i = 0; i < cards.length; i += columns) gridRows.push(cards.slice(i, i + columns))
@@ -77,7 +114,11 @@ export default () => {
                       height: cardH,
                       backgroundColor: theme['c-primary-background-active'],
                     }}
-                    onPress={() => { setNavActiveId(card.id) }}
+                    onPress={() => {
+                      if (isRoamCard(card.id)) handleRoamPress()
+                      else setNavActiveId(card.id)
+                    }}
+                    onLongPress={isRoamCard(card.id) ? () => { roamDialogRef.current?.setVisible(true) } : undefined}
                     activeOpacity={0.7}
                   >
                     <Icon name={card.icon} size={iconSize} color={theme['c-primary']} />
@@ -118,7 +159,44 @@ export default () => {
     )
   }
 
-  return <View style={styles.container} onLayout={handleLayout}>{renderBody()}</View>
+  return (
+    <View style={styles.container} onLayout={handleLayout}>
+      {renderBody()}
+      {/* 【v42】歌曲漫游：长按卡片弹出档位选择 */}
+      <Dialog ref={roamDialogRef} title={t('roam_title')} width={340}>
+        <View style={styles.roamBox}>
+          <Text style={styles.roamDesc} size={12} color={theme['c-font-label']}>{t('roam_mode_tip')}</Text>
+          {(['conservative', 'balanced', 'explorative'] as const).map(mode => (
+            <TouchableOpacity
+              key={mode}
+              style={{ ...styles.roamModeBtn, backgroundColor: roamMode == mode ? theme['c-primary-background-active'] : theme['c-button-background'] }}
+              onPress={() => { handleModeSelect(mode) }}
+            >
+              <Text style={{ color: roamMode == mode ? theme['c-primary-font'] : theme['c-button-font'] }}>
+                {roamModeLabel(mode)}{roamMode == mode ? ` · ${t('roam_mode_current')}` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={{ ...styles.roamModeBtn, backgroundColor: theme['c-button-background'] }}
+            onPress={() => { void nextRoamBatch() }}
+          >
+            <Text style={{ color: theme['c-button-font'] }}>{t('roam_next_batch')}</Text>
+          </TouchableOpacity>
+          {
+            getRoamState().active ? (
+              <TouchableOpacity
+                style={{ ...styles.roamModeBtn, backgroundColor: theme['c-button-background'] }}
+                onPress={handleEndRoam}
+              >
+                <Text style={{ color: theme['c-button-font'] }}>{t('roam_end')}</Text>
+              </TouchableOpacity>
+            ) : null
+          }
+        </View>
+      </Dialog>
+    </View>
+  )
 }
 
 const styles = createStyle({
@@ -166,5 +244,18 @@ const styles = createStyle({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  roamBox: {
+    paddingTop: 6,
+    gap: 10,
+  },
+  roamDesc: {
+    lineHeight: 18,
+  },
+  roamModeBtn: {
+    borderRadius: 6,
+    paddingTop: 10,
+    paddingBottom: 10,
+    alignItems: 'center',
   },
 })

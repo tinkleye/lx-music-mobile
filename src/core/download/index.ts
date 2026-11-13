@@ -191,11 +191,13 @@ export interface DownloadTaskHandle {
 
 /**
  * 开始一首歌的下载。cancel() 会中断网络请求并删掉下了一半的文件。
+ * 【v42】支持 allowToggleSource：取不到目标音质时是否自动换源/降级。
  */
-export const startDownload = ({ musicInfo, quality, onProgress }: {
+export const startDownload = ({ musicInfo, quality, onProgress, allowToggleSource }: {
   musicInfo: LX.Music.MusicInfo
   quality: LX.Quality
   onProgress?: (progress: DownloadProgress) => void
+  allowToggleSource?: boolean
 }): DownloadTaskHandle => {
   let jobId: number | null = null
   let canceled = false
@@ -208,7 +210,7 @@ export const startDownload = ({ musicInfo, quality, onProgress }: {
     if (canceled) throw new DownloadCanceledError()
 
     // 直链会过期，这里强制重新取一次，不复用缓存
-    const url = await getMusicUrl({ musicInfo, quality, isRefresh: true })
+    const url = await getMusicUrl({ musicInfo, quality, isRefresh: true, allowToggleSource })
     if (!url) throw new Error('empty url')
     if (canceled) throw new DownloadCanceledError()
 

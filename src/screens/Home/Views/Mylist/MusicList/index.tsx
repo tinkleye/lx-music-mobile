@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import listState from '@/store/list/state'
 import ListMenu, { type ListMenuType, type Position, type SelectInfo } from './ListMenu'
@@ -7,6 +7,7 @@ import List, { type ListType } from './List'
 import ListMusicAdd, { type MusicAddModalType as ListMusicAddType } from '@/components/MusicAddModal'
 import ListMusicMultiAdd, { type MusicMultiAddModalType as ListAddMultiType } from '@/components/MusicMultiAddModal'
 import DownloadModal, { type MusicDownloadModalType } from '@/components/MusicDownloadModal'
+import { requestDownload } from '@/utils/downloadEntry'
 import { createStyle } from '@/utils/tools'
 import { type LayoutChangeEvent, View } from 'react-native'
 import ActiveList, { type ActiveListType } from './ActiveList'
@@ -16,6 +17,11 @@ import ListMusicSearch, { type ListMusicSearchType } from './ListMusicSearch'
 import MusicPositionModal, { type MusicPositionModalType } from './MusicPositionModal'
 import MetadataEditModal, { type MetadataEditType, type MetadataEditProps } from '@/components/MetadataEditModal'
 import MusicToggleModal, { type MusicToggleModalType } from './MusicToggleModal'
+import { useActiveListId } from '@/store/list/hook'
+import { getListMusicSync } from '@/utils/listManage'
+import { autoPlayOnListOpen } from '@/utils/autoPlayOnOpen'
+import { playList } from '@/core/player/player'
+import { LIST_IDS } from '@/config/constant'
 
 
 export default ({ listId, paging }: { listId?: string, paging?: boolean } = {}) => {
@@ -41,6 +47,25 @@ export default ({ listId, paging }: { listId?: string, paging?: boolean } = {}) 
   const isShowSearchBarModeBar = useRef(false)
   const selectedInfoRef = useRef<SelectInfo>()
   // console.log('render index list')
+
+  // 【v42】打开歌单自动起播：动态列表模式下，切换 activeListId 时自动起播。
+  // 启动恢复的初始列表不触发；固定列表模式（本地音乐）不参与。
+  const dynamicActiveListId = useActiveListId()
+  const prevActiveListIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (isFixedList) return
+    if (!dynamicActiveListId) return
+    if (prevActiveListIdRef.current === null) {
+      prevActiveListIdRef.current = dynamicActiveListId
+      return
+    }
+    if (prevActiveListIdRef.current === dynamicActiveListId) return
+    prevActiveListIdRef.current = dynamicActiveListId
+    if (dynamicActiveListId == LIST_IDS.TEMP || dynamicActiveListId == LIST_IDS.DOWNLOAD) return
+    autoPlayOnListOpen(`mylist_${dynamicActiveListId}`, getListMusicSync(dynamicActiveListId), (index) => {
+      void playList(dynamicActiveListId, index)
+    })
+  }, [dynamicActiveListId, isFixedList])
 
   const hancelMultiSelect = useCallback(() => {
     if (isShowSearchBarModeBar.current) {
@@ -115,9 +140,14 @@ export default ({ listId, paging }: { listId?: string, paging?: boolean } = {}) 
     }
   }, [])
   // 【车机改造】本地歌曲没有在线音质，菜单里已置灰，这里再兜底过滤一次
+  // 【v42】未开启"总是询问音质"时直接入队；开启时才弹音质选择
   const handleDownloadMusic = useCallback((info: SelectInfo) => {
     if (info.musicInfo.source == 'local') return
     const onlineSelected = info.selectedList.filter(m => m.source != 'local')
+    if (requestDownload(info.musicInfo, onlineSelected)) {
+      if (onlineSelected.length) hancelExitSelect()
+      return
+    }
     hancelExitSelect()
     downloadModalRef.current?.show({
       musicInfo: info.musicInfo,

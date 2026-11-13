@@ -6,6 +6,7 @@ import ListMenu, { type ListMenuType, type Position, type SelectInfo } from './L
 import ListMusicMultiAdd, { type MusicMultiAddModalType as ListAddMultiType } from '@/components/MusicMultiAddModal'
 import ListMusicAdd, { type MusicAddModalType as ListMusicAddType } from '@/components/MusicAddModal'
 import DownloadModal, { type MusicDownloadModalType } from '@/components/MusicDownloadModal'
+import { requestDownload } from '@/utils/downloadEntry'
 import MultipleModeBar, { type MultipleModeBarType, type SelectMode } from './MultipleModeBar'
 import { clearMusicUrl, handleDislikeMusic, handlePlay, handlePlayLater, handleShare, handleShowMusicSourceDetail } from './listAction'
 import { createStyle } from '@/utils/tools'
@@ -114,7 +115,14 @@ export default forwardRef<OnlineListType, OnlineListProps>(({
         ref={listMenuRef}
         onPlay={info => { handlePlay(info.musicInfo) }}
         onPlayLater={info => { hancelExitSelect(); handlePlayLater(info.musicInfo, info.selectedList, hancelExitSelect) }}
-        onDownload={info => { downloadModalRef.current?.show({ musicInfo: info.musicInfo, selectedList: info.selectedList }) }}
+        onDownload={info => {
+          // 【v42】未开启"总是询问音质"直接入队；否则弹音质选择
+          if (!requestDownload(info.musicInfo, info.selectedList)) {
+            downloadModalRef.current?.show({ musicInfo: info.musicInfo, selectedList: info.selectedList })
+          } else if (info.selectedList.length) {
+            hancelExitSelect()
+          }
+        }}
         onCopyName={info => { handleShare(info.musicInfo) }}
         onAdd={handleAddMusic}
         onMusicSourceDetail={info => { void handleShowMusicSourceDetail(info.musicInfo) }}

@@ -1,6 +1,7 @@
 import { clearPlayedList } from './playedList'
 import { SPLIT_CHAR } from '@/config/constant'
 import { state } from '@/store/dislikeList'
+import { isBlockedMusic, hasBlockRules } from '@/core/blockList'
 
 /**
  * 过滤列表中已播放的歌曲
@@ -114,9 +115,14 @@ export const filterList = async({ playedList, listId, list, playerMusicInfo, isN
 }) => {
   // if (this.list.listName === null) return
   // console.log(isCheckFile)
+  // 【v42】屏蔽规则前置过滤：被屏蔽的歌曲（歌手/关键词命中）不会被自动切歌选中。
+  // 当前正播歌曲若被屏蔽（手动点播进来的），由 handlePlay 的拦截逻辑自动跳走
+  const filteredSourceList: Array<LX.Music.MusicInfo | LX.Download.ListItem> = hasBlockRules()
+    ? list.filter(s => ('progress' in s) || !isBlockedMusic(s))
+    : list
   let { filteredList, canPlayList, playerIndex } = filterMusicList({
     listId,
-    list,
+    list: filteredSourceList,
     playedList,
     // savePath: global.lx.setting['download.savePath'],
     playerMusicInfo,

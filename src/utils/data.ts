@@ -585,7 +585,7 @@ export const addUserApi = async(script: string, sourceUrl?: string): Promise<LX.
   const apiInfo: LX.UserApi.UserApiInfo = {
     id: `user_api_${Math.random().toString().substring(2, 5)}_${Date.now()}`,
     ...scriptInfo,
-    allowShowUpdateAlert: true,
+    allowShowUpdateAlert: false, // 【v42】新导入的源默认不弹更新提醒，可手动打开
     // 【改造】记住导入时的来源地址，后续可据此自动更新
     ...(sourceUrl ? { sourceUrl } : {}),
   }
