@@ -481,8 +481,8 @@
   "setting_sync_code_input_tip": "请输入连接码",
   "setting_sync_code_label": "首次连接需要输入连接码",
   "nav_roam": "歌曲漫游",
-  "block_list_title": "屏蔽歌手/关键词",
-  "block_list_label": "共 {num} 条规则",
+  "block_list_title": "「屏蔽歌手/关键词」规则",
+  "block_list_label": "规则数量：{num}",
   "block_list_edit_btn": "编辑规则",
   "block_list_saved_tip": "屏蔽规则已保存",
   "block_list_batch_tip": "每行一条，格式：「歌手:xxx」或「关键词:xxx」，无前缀按关键词处理",
@@ -767,5 +767,6 @@
   "download_dir_select": "选择此目录",
   "download_dir_empty": "无子目录",
   "roam_mode_radical_title": "激进",
-  "roam_mode_radical_desc": "20% 偏好"
+  "roam_mode_radical_desc": "20% 偏好",
+  "player_blacklist": "播放黑名单"
 }

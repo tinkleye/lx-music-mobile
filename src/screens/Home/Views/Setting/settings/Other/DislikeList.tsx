@@ -29,10 +29,8 @@ export default memo(() => {
 
   return (
     <SubTitle title={t('setting__other_dislike_list')}>
-      <View style={styles.ruleNum}>
+      <View style={styles.row}>
         <Text>{t('setting__other_dislike_list_label', { num: ruleNum })}</Text>
-      </View>
-      <View style={styles.btn}>
         <Button onPress={handleShow}>{t('setting_other_dislike_list_show_btn')}</Button>
       </View>
       <DislikeEditModal ref={modalRef} onSave={handleSave} />
@@ -41,10 +39,9 @@ export default memo(() => {
 })
 
 const styles = StyleSheet.create({
-  ruleNum: {
-    marginBottom: 5,
-  },
-  btn: {
+  row: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 })

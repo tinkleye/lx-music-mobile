@@ -6,10 +6,12 @@ import { useI18n } from '@/lang'
 import { useTheme } from '@/store/theme/hook'
 import playerState from '@/store/player/state'
 import { blockCurrentSinger } from '@/core/player/player'
+import { scaleSizeW } from '@/utils/pixelRatio'
 
 /**
  * 【v42】屏蔽该歌手：不再播放该歌手的所有歌曲（含合唱），歌单内容不删除。
  * 【v45】图标从 close 改为「爱心 + 斜杠」组合，竖屏/横屏共用（size 自适应）。
+ * 【v48】统一用 scaleSizeW 缩放 love 图标与斜杠（原图标缩放、斜杠不缩放导致错位/显示不全）。
  */
 export default ({ size = 22 }: { size?: number }) => {
   const t = useI18n()
@@ -30,22 +32,23 @@ export default ({ size = 22 }: { size?: number }) => {
     toast(t('block_singer_done_tip', { singer: name }))
   }
 
-  const slashLen = size * 1.2
-  const slashThick = Math.max(1.2, size * 0.11)
+  const iconSize = scaleSizeW(size)
+  const slashLen = iconSize * 1.15
+  const slashThick = Math.max(1.2, iconSize * 0.1)
 
   return (
     <TouchableOpacity
-      style={{ ...styles.btn, width: size * 1.6, height: size * 1.6 }}
+      style={{ ...styles.btn, width: iconSize * 1.6, height: iconSize * 1.6 }}
       activeOpacity={0.5}
       onPress={() => { void handleBlock() }}
     >
-      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="love" color={theme['c-font-label']} size={size} />
+      <View style={{ width: iconSize, height: iconSize, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name="love" color={theme['c-font-label']} rawSize={iconSize} />
         <View
           style={{
             position: 'absolute',
-            left: (size - slashLen) / 2,
-            top: (size - slashThick) / 2,
+            left: (iconSize - slashLen) / 2,
+            top: (iconSize - slashThick) / 2,
             width: slashLen,
             height: slashThick,
             borderRadius: slashThick / 2,

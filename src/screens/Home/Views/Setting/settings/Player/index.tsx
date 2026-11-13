@@ -1,6 +1,7 @@
 import { memo } from 'react'
 
 import Section from '../../components/Section'
+import SubTitle from '../../components/SubTitle'
 import IsSavePlayTime from './IsSavePlayTime'
 import PlayHighQuality from './PlayHighQuality'
 import IsHandleAudioFocus from './IsHandleAudioFocus'
@@ -35,7 +36,8 @@ export default memo(() => {
       <IsS2T />
       <MaxCache />
       <PlayHighQuality />
-      {/* 【v45】不喜欢的歌曲（原「其他」分组）移到播放设置下 */}
+      {/* 【v48】播放黑名单分组：不喜欢的歌曲规则 + 屏蔽歌手/关键词规则 */}
+      <SubTitle title={t('player_blacklist')} compact />
       <DislikeList />
       <BlockList />
     </Section>

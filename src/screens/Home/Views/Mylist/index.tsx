@@ -9,16 +9,16 @@ import { COMPONENT_IDS } from '@/config/constant'
 import { scaleSizeW } from '@/utils/pixelRatio'
 import { createStyle } from '@/utils/tools'
 import { BorderWidths } from '@/theme'
-import { isCarModeEnabled } from '@/config/carMode'
+import { useHorizontalMode } from '@/utils/hooks'
 import type { InitState as CommonState } from '@/store/common/state'
 
-// 【改造】车机模式：列表抽屉改成常驻左栏，不需要再点开
-const carMode = isCarModeEnabled()
+// 【v48】按横竖屏切换布局（与排行榜一致）：横屏=常驻左栏双栏，竖屏=抽屉一栏+点击划出列表栏
 const MAX_WIDTH = scaleSizeW(400)
 
 export default () => {
   const drawer = useRef<DrawerLayoutFixedType>(null)
   const theme = useTheme()
+  const isHorizontalMode = useHorizontalMode()
   // const [width, setWidth] = useState(0)
 
   useEffect(() => {
@@ -58,9 +58,9 @@ export default () => {
   const navigationView = () => <MyList />
   // console.log('render drawer content')
 
-  // 【改造】车机模式：固定左右两栏 —— 左栏是所有列表，右栏是当前列表的歌曲。
-  // 不再用抽屉，所以点导航的「我的列表 / 我的收藏」都能直接看到全部列表。
-  if (carMode) {
+  // 【v48】横屏：固定左右两栏 —— 左栏是所有列表，右栏是当前列表的歌曲。
+  // 竖屏：抽屉一栏，点击顶部列表名从左边划出列表栏（与排行榜一致）。
+  if (isHorizontalMode) {
     return (
       <View style={styles.carContainer}>
         <View style={{ ...styles.carListPane, borderRightColor: theme['c-border-background'] }}>

@@ -481,8 +481,8 @@
   "setting_sync_code_input_tip": "Please enter the connection code",
   "setting_sync_code_label": "Need to enter the connection code for the first connection",
   "nav_roam": "Music Roam",
-  "block_list_title": "Block Singers / Keywords",
-  "block_list_label": "{num} rules",
+  "block_list_title": "Block Singers / Keywords Rules",
+  "block_list_label": "Rules: {num}",
   "block_list_edit_btn": "Edit rules",
   "block_list_saved_tip": "Block rules saved",
   "block_list_batch_tip": "One rule per line: \"Artist:xxx\" or \"Keyword:xxx\"; lines without prefix are treated as keywords",
@@ -767,5 +767,6 @@
   "download_dir_select": "Select this directory",
   "download_dir_empty": "No subdirectories",
   "roam_mode_radical_title": "Radical",
-  "roam_mode_radical_desc": "20% preference"
+  "roam_mode_radical_desc": "20% preference",
+  "player_blacklist": "Play blacklist"
 }

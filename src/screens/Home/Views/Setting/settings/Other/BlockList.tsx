@@ -67,10 +67,8 @@ export default memo(() => {
 
   return (
     <SubTitle title={t('block_list_title')}>
-      <View style={styles.ruleNum}>
+      <View style={styles.row}>
         <Text>{t('block_list_label', { num: total })}</Text>
-      </View>
-      <View style={styles.btn}>
         <Button onPress={handleShow}>{t('block_list_edit_btn')}</Button>
       </View>
 
@@ -122,11 +120,10 @@ export default memo(() => {
 })
 
 const styles = createStyle({
-  ruleNum: {
-    marginBottom: 5,
-  },
-  btn: {
+  row: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   tip: {
     paddingTop: 6,
