@@ -1,5 +1,7 @@
 import RNFS from 'react-native-fs'
-import { getMusicUrl } from '@/core/music'
+import { getMusicUrl, getLyricInfo, getPicPath } from '@/core/music'
+import { writeLyric, writePic } from '@/utils/localMediaMetadata'
+import { getExternalStoragePaths, temporaryDirectoryPath } from '@/utils/fs'
 import settingState from '@/store/setting/state'
 
 /**
@@ -124,9 +126,49 @@ const getDirCandidates = () => [
   `${RNFS.ExternalDirectoryPath}/${DOWNLOAD_DIR_NAME}`,
 ]
 
-export const getDownloadDir = () => getDirCandidates()[0]
+/** 供设置页选择下载目录用的候选列表（含 U盘/外置存储卷），默认在前、私有兜底在后 */
+export const getDownloadDirCandidates = async(): Promise<string[]> => {
+  const dirs = getDirCandidates()
+  try {
+    const roots = await getExternalStoragePaths(true)
+    for (const root of roots ?? []) {
+      if (!root) continue
+      const norm = root.replace(/\/+$/, '')
+      if (norm == RNFS.ExternalStorageDirectoryPath || norm == RNFS.ExternalDirectoryPath) continue
+      if (!dirs.includes(`${norm}/${DOWNLOAD_DIR_NAME}`)) dirs.push(`${norm}/${DOWNLOAD_DIR_NAME}`)
+    }
+  } catch (err) {
+    console.log('list removable storage failed:', err)
+  }
+  return dirs
+}
+
+/** 当前生效的下载目录：自定义优先，否则默认第一个候选 */
+export const getDownloadDir = () => {
+  const custom = settingState.setting['download.dir']
+  return (custom && custom.trim()) || getDirCandidates()[0]
+}
+
+/** 下载目录的展示用路径 */
+export const getDownloadDirLabel = () => {
+  const custom = settingState.setting['download.dir']
+  if (custom && custom.trim()) return custom
+  return `Music/${DOWNLOAD_DIR_NAME}`
+}
 
 const prepareDownloadDir = async(): Promise<{ dir: string, isPublic: boolean }> => {
+  const custom = (settingState.setting['download.dir'] || '').trim()
+  if (custom) {
+    try {
+      if (!await RNFS.exists(custom)) await RNFS.mkdir(custom)
+      const probe = `${custom.replace(/\/+$/, '')}/.lx_write_test`
+      await RNFS.writeFile(probe, 'ok', 'utf8')
+      await RNFS.unlink(probe)
+      return { dir: custom, isPublic: !custom.startsWith(RNFS.ExternalDirectoryPath) }
+    } catch (err) {
+      console.log('custom download dir not writable, fallback to default:', custom, err)
+    }
+  }
   const dirs = getDirCandidates()
   for (let i = 0; i < dirs.length; i++) {
     const dir = dirs[i]
@@ -258,6 +300,8 @@ export const startDownload = ({ musicInfo, quality, onProgress, allowToggleSourc
       throw new Error('invalid file')
     }
     onProgress?.({ loaded: Number(stat.size), total: Number(stat.size) })
+    // 【v43】内嵌标签 / 附加文件：失败不影响下载结果本身
+    await applyDownloadPostProcess(musicInfo, destPath, dir, baseName)
     return {
       filePath: destPath,
       fileName: destPath.slice(destPath.lastIndexOf('/') + 1),
@@ -274,9 +318,68 @@ export const startDownload = ({ musicInfo, quality, onProgress, allowToggleSourc
   }
 }
 
-/** 下载目录的展示用路径，如 Music/LX音乐 */
-export const getDownloadDirLabel = (isPublic = true) => {
-  return isPublic
-    ? `Music/${DOWNLOAD_DIR_NAME}`
-    : `Android/data/cn.toside.music.mobile/files/${DOWNLOAD_DIR_NAME}`
+/** 下载封面图到临时目录，返回本地文件路径（http 下载 / 本地直接复用） */
+const fetchCoverToLocal = async(picUrl: string): Promise<string | null> => {
+  try {
+    if (/^https?:\/\//i.test(picUrl)) {
+      const tmp = `${temporaryDirectoryPath}/lx_cover_${Date.now()}.jpg`
+      const res = await RNFS.downloadFile({ fromUrl: picUrl, toFile: tmp }).promise
+      if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) return null
+      return tmp
+    }
+    if (await RNFS.exists(picUrl)) return picUrl
+    return null
+  } catch (err) {
+    console.log('fetch cover failed:', err)
+    return null
+  }
 }
+
+/** 【v43】下载后处理：内嵌封面/歌词、另存 .lrc / 封面文件 */
+const applyDownloadPostProcess = async(
+  musicInfo: LX.Music.MusicInfo,
+  destPath: string,
+  dir: string,
+  baseName: string,
+) => {
+  const setting = settingState.setting
+  const needLyric = setting['download.isSaveLrc'] || setting['download.isEmbedLyric']
+  const needCover = setting['download.isSaveCover'] || setting['download.isEmbedCover']
+  if (!needLyric && !needCover) return
+
+  try {
+    if (needLyric) {
+      const lyricInfo = await getLyricInfo({ musicInfo })
+      const lyric = lyricInfo?.lyric
+      if (lyric) {
+        if (setting['download.isSaveLrc']) {
+          await RNFS.writeFile(`${dir}/${baseName}.lrc`, lyric, 'utf8').catch(() => {})
+        }
+        if (setting['download.isEmbedLyric']) {
+          await writeLyric(destPath, lyric).catch(() => {})
+        }
+      }
+    }
+  } catch (err) {
+    console.log('download post-process lyric failed:', err)
+  }
+
+  try {
+    if (needCover) {
+      const picUrl = await getPicPath({ musicInfo })
+      const coverPath = picUrl ? await fetchCoverToLocal(picUrl) : null
+      if (coverPath) {
+        if (setting['download.isSaveCover']) {
+          const ext = coverPath.lastIndexOf('.') > 0 ? coverPath.slice(coverPath.lastIndexOf('.')) : '.jpg'
+          await RNFS.copyFile(coverPath, `${dir}/${baseName}${ext}`).catch(() => {})
+        }
+        if (setting['download.isEmbedCover']) {
+          await writePic(destPath, coverPath).catch(() => {})
+        }
+      }
+    }
+  } catch (err) {
+    console.log('download post-process cover failed:', err)
+  }
+}
+

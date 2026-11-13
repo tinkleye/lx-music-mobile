@@ -30,6 +30,7 @@ const formatBytes = (bytes: number) => {
 const statusLabelKey: Record<DownloadTask['status'], keyof Message> = {
   waiting: 'download_status_waiting',
   running: 'download_status_running',
+  paused: 'download_status_paused',
   done: 'download_status_done',
   failed: 'download_status_failed',
   canceled: 'download_status_canceled',

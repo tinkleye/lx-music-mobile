@@ -28,7 +28,7 @@ const CARDS: CardItem[] = [
   { id: 'nav_top', icon: 'leaderboard', labelKey: 'nav_top' },
   { id: 'nav_search', icon: 'search-2', labelKey: 'nav_search' },
   { id: 'nav_roam', icon: 'list-random', labelKey: 'nav_roam' },
-  { id: 'nav_setting', icon: 'setting', labelKey: 'nav_setting' },
+  // 【v43】驾驶舱不显示设置入口
 ]
 
 const GAP = 12

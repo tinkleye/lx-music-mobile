@@ -357,6 +357,36 @@ declare global {
       'download.fileName': '歌名 - 歌手' | '歌手 - 歌名' | '歌名'
 
       /**
+       * 【v43】自定义下载目录（绝对路径，空字符串 = 自动选择公共目录）
+       */
+      'download.dir': string
+
+      /**
+       * 【v43】默认下载音质（空字符串 = 跟随播放音质自动选择）
+       */
+      'download.quality': LX.Quality | ''
+
+      /**
+       * 【v43】下载后内嵌封面到音频文件标签
+       */
+      'download.isEmbedCover': boolean
+
+      /**
+       * 【v43】下载后内嵌歌词到音频文件标签
+       */
+      'download.isEmbedLyric': boolean
+
+      /**
+       * 【v43】下载后另存 .lrc 歌词文件
+       */
+      'download.isSaveLrc': boolean
+
+      /**
+       * 【v43】下载后另存封面图片文件
+       */
+      'download.isSaveCover': boolean
+
+      /**
        * 【v42】下载前总是询问音质
        */
       'download.isAskQuality': boolean

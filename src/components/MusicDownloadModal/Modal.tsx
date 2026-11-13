@@ -126,7 +126,7 @@ export default forwardRef<MusicDownloadModalType, MusicDownloadModalProps>(({ on
           }
         </ScrollView>
         <Text style={styles.hint} size={11} color={theme['c-font-label']} numberOfLines={1}>
-          {t('download_save_to', { path: getDownloadDirLabel(true) })}
+          {t('download_save_to', { path: getDownloadDirLabel() })}
         </Text>
       </>
     )

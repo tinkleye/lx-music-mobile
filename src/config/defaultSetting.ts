@@ -74,6 +74,13 @@ const defaultSetting: LX.AppSetting = {
   'list.isAutoPlayOnOpen': 'off',
 
   'download.fileName': '歌名 - 歌手',
+  // 【v43】下载目录（空=自动）/ 默认音质（空=跟随播放音质）/ 内嵌标签 / 附加文件
+  'download.dir': '',
+  'download.quality': '',
+  'download.isEmbedCover': false,
+  'download.isEmbedLyric': false,
+  'download.isSaveLrc': false,
+  'download.isSaveCover': false,
 
   'sync.enable': false,
 

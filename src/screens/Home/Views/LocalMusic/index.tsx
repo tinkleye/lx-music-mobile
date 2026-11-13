@@ -25,8 +25,7 @@ import { playList } from '@/core/player/player'
 import MusicList from '../Mylist/MusicList'
 import GroupView, { type GroupBy } from './GroupView'
 import FolderPickerModal from './FolderPickerModal'
-import DownloadTaskPanel from '@/components/DownloadTaskPanel'
-import Dialog from '@/components/common/Dialog'
+import DownloadPage from '@/components/DownloadPage'
 
 // 【v38】横屏控制栏上下分组：视图入口组贴顶、扫描操作组贴底，中间弹性留白；
 // 视图入口配图标（歌曲=musical-notes 音符[Ionicons]、专辑=album 唱片、
@@ -58,6 +57,8 @@ export default () => {
   const [musics, setMusics] = useState<LX.Music.MusicInfo[]>([])
   const [scanExcluded, setScanExcluded] = useState<string[]>([])
   const [showFolderPicker, setShowFolderPicker] = useState(false)
+  // 【v43】歌曲下载页面开关：横屏右侧内容区 / 竖屏列表区切换
+  const [showDownload, setShowDownload] = useState(false)
 
   // 分组视图需要列表数据：初始化 + 列表更新事件时刷新
   useEffect(() => {
@@ -242,7 +243,6 @@ export default () => {
       </RNText>
     </View>
   )
-  const downloadPanelRef = useRef<InstanceType<typeof Dialog>>(null)
 
   // 【v39】不再画不透明底色：页面由 Home 的 PageContent 提供背景（主题背景图 /
   // 勾选"使用动态背景"时的当前歌曲封面模糊图），画底色会把这些背景盖住
@@ -257,8 +257,19 @@ export default () => {
                 <View style={{ ...styles.sideCol, borderRightColor: theme['c-primary-light-100-alpha-200'] }}>
                   {renderLandscapeTabs()}
                   <View style={styles.sideGap} />
-                  {/* 【v42】下载任务面板：视图组之下、扫描组之上 */}
-                  <DownloadTaskPanel />
+                  {/* 【v43】歌曲下载入口：与视图入口同级，点击后在右侧显示下载页面 */}
+                  <TouchableOpacity
+                    style={[
+                      styles.sideItem,
+                      showDownload ? { ...styles.sideItemActive, borderLeftColor: theme['c-primary'] } : null,
+                    ]}
+                    onPress={() => { setShowDownload(v => !v) }}
+                  >
+                    <Icon name="download-2" size={16} color={showDownload ? theme['c-primary'] : theme['c-font-label']} />
+                    <Text numberOfLines={1} style={{ ...styles.sideText, color: showDownload ? theme['c-primary'] : theme['c-font'] }}>
+                      {t('download_entry')}
+                    </Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.sideItem} onPress={() => { setShowFolderPicker(true) }}>
                     <Icon name="add_folder" size={16} color={theme['c-primary']} />
                     <Text numberOfLines={1} style={{ ...styles.sideText, color: theme['c-primary'] }}>
@@ -275,14 +286,24 @@ export default () => {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.landContent}>
-                  {renderStatusBar()}
-                  {renderContent()}
+                  {showDownload
+                    ? <DownloadPage />
+                    : (<>{renderStatusBar()}{renderContent()}</>)}
                 </View>
               </View>
             )
           : (
-              // 竖屏：保持现有布局（顶部一行 tabs + 操作按钮），歌曲上下滚动
+              // 【v43】竖屏：标题行（本地音乐 + 右侧下载入口）+ 一行 tabs + 操作按钮，歌曲上下滚动
               <>
+                <View style={{ ...styles.portTitleRow, borderBottomColor: theme['c-primary-light-100-alpha-200'] }}>
+                  <Text size={20} numberOfLines={1} style={{ ...styles.portTitle, color: theme['c-font'] }}>{t('nav_local')}</Text>
+                  <TouchableOpacity style={styles.downloadEntry} onPress={() => { setShowDownload(v => !v) }}>
+                    <Icon name={showDownload ? 'chevron-left' : 'download-2'} size={16} color={showDownload ? theme['c-primary'] : theme['c-font-label']} />
+                    <Text numberOfLines={1} style={{ ...styles.downloadEntryText, color: showDownload ? theme['c-primary'] : theme['c-font'] }}>
+                      {showDownload ? t('back') : t('download_entry')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={{ ...styles.header, borderBottomColor: theme['c-primary-light-100-alpha-200'] }}>
                   {renderPortraitTabs()}
                   <TouchableOpacity style={styles.actionBtn} onPress={() => { setShowFolderPicker(true) }}>
@@ -299,13 +320,9 @@ export default () => {
                       {isScanning ? t('local_music_scanning') : t('local_music_scan')}
                     </Text>
                   </TouchableOpacity>
-                  {/* 【v42】竖屏下载任务入口：标题行最右侧 */}
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => { downloadPanelRef.current?.setVisible(true) }}>
-                    <Icon name="download-2" size={16} color={theme['c-primary']} />
-                  </TouchableOpacity>
                 </View>
                 {renderStatusBar()}
-                {renderContent()}
+                {showDownload ? <DownloadPage /> : renderContent()}
               </>
             )
       }
@@ -313,12 +330,6 @@ export default () => {
         visible={showFolderPicker}
         excluded={scanExcluded}
         onClose={handleFoldersConfirm} />
-      {/* 【v42】竖屏下载任务面板弹层 */}
-      <Dialog ref={downloadPanelRef} title={t('download_task_dialog_title')} width={420}>
-        <View style={styles.panelBox}>
-          <DownloadTaskPanel />
-        </View>
-      </Dialog>
     </View>
   )
 }
@@ -402,8 +413,28 @@ const styles = createStyle({
   scanStatusText: {
     fontSize: 12,
   },
-  // 【v42】竖屏下载面板弹层
-  panelBox: {
-    height: 300,
+  // 【v43】竖屏标题行：本地音乐大标题 + 右侧下载入口
+  portTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 14,
+    paddingRight: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: BorderWidths.normal,
+  },
+  portTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  downloadEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 4,
+  },
+  downloadEntryText: {
+    fontSize: 13,
   },
 })

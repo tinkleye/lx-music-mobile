@@ -17,7 +17,7 @@ import { toast } from '@/utils/tools'
 const PERSIST_KEY = '@download_pending_queue'
 const BATCH_LIMIT = 200
 
-export type DownloadTaskStatus = 'waiting' | 'running' | 'done' | 'failed' | 'canceled'
+export type DownloadTaskStatus = 'waiting' | 'running' | 'paused' | 'done' | 'failed' | 'canceled'
 
 export interface DownloadTask {
   id: string
@@ -31,6 +31,7 @@ export interface DownloadTask {
 let tasks: DownloadTask[] = []
 const listeners = new Set<() => void>()
 const runningHandles = new Map<string, { cancel: () => void }>()
+const pausedIds = new Set<string>()
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 let initialized = false
 
@@ -77,7 +78,10 @@ const runTask = (task: DownloadTask) => {
     task.status = 'done'
     toast(global.i18n.t('download_task_done_tip', { name: task.musicInfo.name }))
   }).catch((err: Error) => {
-    if (err instanceof DownloadCanceledError || err.name == 'DownloadCanceledError') {
+    if (pausedIds.has(task.id)) {
+      pausedIds.delete(task.id)
+      task.status = 'paused'
+    } else if (err instanceof DownloadCanceledError || err.name == 'DownloadCanceledError') {
       task.status = 'canceled'
     } else {
       task.status = 'failed'
@@ -110,7 +114,7 @@ const pump = async() => {
 export const autoPickQuality = (musicInfo: LX.Music.MusicInfo): LX.Quality => {
   const available = getDownloadQualitys(musicInfo).map(q => q.quality)
   if (!available.length) return settingState.setting['player.playQuality']
-  const preferred = settingState.setting['player.playQuality']
+  const preferred = settingState.setting['download.quality'] || settingState.setting['player.playQuality']
   if (available.includes(preferred)) return preferred
   // 从偏好音质往下找，找不到再往高档兜底
   const idx = QUALITY_ORDER.indexOf(preferred)
@@ -128,7 +132,7 @@ export const addDownloadTasks = (musicInfos: LX.Music.MusicInfo[], quality?: LX.
     skipped += list.length - BATCH_LIMIT
     list = list.slice(0, BATCH_LIMIT)
   }
-  const existingIds = new Set(tasks.filter(t => t.status == 'waiting' || t.status == 'running').map(t => t.musicInfo.id))
+  const existingIds = new Set(tasks.filter(t => t.status == 'waiting' || t.status == 'running' || t.status == 'paused').map(t => t.musicInfo.id))
   let added = 0
   for (const musicInfo of list) {
     if (existingIds.has(musicInfo.id)) {
@@ -163,6 +167,32 @@ export const retryTask = (id: string) => {
   void pump()
 }
 
+/** 【v43】暂停：运行中的中断、等待中的转暂停（位置保留，不占并发） */
+export const pauseTask = (id: string) => {
+  const task = tasks.find(t => t.id == id)
+  if (!task || task.status == 'done' || task.status == 'failed' || task.status == 'canceled' || task.status == 'paused') return
+  if (task.status == 'running') {
+    pausedIds.add(id)
+    runningHandles.get(id)?.cancel()
+    return
+  }
+  if (task.status == 'waiting') {
+    task.status = 'paused'
+    persist()
+    notify()
+  }
+}
+
+/** 【v43】恢复暂停的任务继续下载 */
+export const resumeTask = (id: string) => {
+  const task = tasks.find(t => t.id == id)
+  if (!task || task.status != 'paused') return
+  task.status = 'waiting'
+  persist()
+  notify()
+  void pump()
+}
+
 export const cancelTask = (id: string) => {
   const task = tasks.find(t => t.id == id)
   if (!task) return
@@ -184,7 +214,7 @@ export const removeTask = (id: string) => {
 }
 
 export const clearFinishedTasks = () => {
-  tasks = tasks.filter(t => t.status == 'waiting' || t.status == 'running')
+  tasks = tasks.filter(t => t.status == 'waiting' || t.status == 'running' || t.status == 'paused')
   persist()
   notify()
 }
