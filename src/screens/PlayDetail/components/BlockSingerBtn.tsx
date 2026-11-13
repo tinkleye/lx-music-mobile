@@ -30,8 +30,8 @@ export default ({ size = 22 }: { size?: number }) => {
     toast(t('block_singer_done_tip', { singer: name }))
   }
 
-  const slashLen = size * 1.35
-  const slashThick = Math.max(1.5, size * 0.14)
+  const slashLen = size * 1.2
+  const slashThick = Math.max(1.2, size * 0.11)
 
   return (
     <TouchableOpacity
@@ -44,6 +44,8 @@ export default ({ size = 22 }: { size?: number }) => {
         <View
           style={{
             position: 'absolute',
+            left: (size - slashLen) / 2,
+            top: (size - slashThick) / 2,
             width: slashLen,
             height: slashThick,
             borderRadius: slashThick / 2,

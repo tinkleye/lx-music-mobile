@@ -26,6 +26,22 @@ const parentOf = (p: string) => {
   return idx > 0 ? norm.slice(0, idx) : '/'
 }
 
+const parseRgb = (c: string): [number, number, number] | null => {
+  const m = c.match(/rgba?\(([^)]+)\)/)
+  if (!m) return null
+  const parts = m[1].split(',').map(s => parseFloat(s.trim()))
+  if (Number.isNaN(parts[0])) return null
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0]
+}
+
+// 按主色亮度选文字黑白，避免实心主色按钮上文字与背景同色
+const getContrastFont = (primary: string) => {
+  const rgb = parseRgb(primary)
+  if (!rgb) return '#ffffff'
+  const lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+  return lum > 150 ? '#000000' : '#ffffff'
+}
+
 export interface DirBrowserType {
   show: () => void
 }
@@ -114,7 +130,7 @@ export default forwardRef<DirBrowserType, { onSelect: (path: string) => void }>(
                 onSelect(currentPath)
               }}
             >
-              <Text size={14} color={theme['c-primary-font']}>{t('download_dir_select')}</Text>
+              <Text size={14} color={getContrastFont(theme['c-primary'])}>{t('download_dir_select')}</Text>
             </TouchableOpacity>
           ) : null
         }

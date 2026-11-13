@@ -191,7 +191,7 @@ export default () => {
                   onPress={() => { handleModeSelect(mode) }}
                 >
                   <Text style={{ ...styles.roamModeTitle, color: active ? theme['c-primary-font'] : theme['c-button-font'] }}>
-                    {roamModeTitle(mode)}{active ? ` · ${t('roam_mode_current')}` : ''}
+                    {roamModeTitle(mode)}
                   </Text>
                   <Text size={12} color={active ? theme['c-primary-font'] : theme['c-font-label']}>{roamModeDesc(mode)}</Text>
                 </TouchableOpacity>
