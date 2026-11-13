@@ -6,8 +6,9 @@ import commonState from '@/store/common/state'
 import playerState from '@/store/player/state'
 import { LIST_IDS, NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import Image from '@/components/common/Image'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { setLoadErrorPicUrl, setMusicInfo } from '@/core/player/playInfo'
+import { setPlayBarCoverRect } from '@/utils/coverTransition'
 
 const PIC_HEIGHT = scaleSizeH(46)
 
@@ -21,6 +22,13 @@ const styles = StyleSheet.create({
 
 export default ({ isHome }: { isHome: boolean }) => {
   const musicInfo = usePlayerMusicInfo()
+  const picRef = useRef<TouchableOpacity>(null)
+  // 【v54】记录播放条封面在屏幕上的位置/尺寸，供播放页做封面斜线放大动画
+  const handleLayout = () => {
+    picRef.current?.measureInWindow((x, y, width, height) => {
+      setPlayBarCoverRect({ x, y, width, height })
+    })
+  }
   const handlePress = () => {
     // console.log('')
     // console.log(playMusicInfo)
@@ -45,7 +53,7 @@ export default ({ isHome }: { isHome: boolean }) => {
   }, [])
 
   return (
-    <TouchableOpacity onLongPress={handleLongPress} onPress={handlePress} activeOpacity={0.7} >
+    <TouchableOpacity ref={picRef} onLayout={handleLayout} onLongPress={handleLongPress} onPress={handlePress} activeOpacity={0.7} >
       <Image url={musicInfo.pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={styles.image} onError={handleError} />
     </TouchableOpacity>
   )

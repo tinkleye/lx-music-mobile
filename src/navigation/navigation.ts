@@ -13,6 +13,7 @@ import themeState from '@/store/theme/state'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { getStatusBarStyle } from './utils'
 import { isFullscreenEnabled } from '@/config/fullscreen'
+import { isCarModeEnabled } from '@/config/carMode'
 import { windowSizeTools } from '@/utils/windowSizeTools'
 import { type ListInfoItem } from '@/store/songlist/state'
 
@@ -149,7 +150,18 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
             componentBackgroundColor: theme['c-content-background'],
           },
           animations: {
-            push: skipAnimation ? {} : {
+            push: skipAnimation ? {} : (isCarModeEnabled() && windowSizeTools.getSize().width > windowSizeTools.getSize().height ? {
+              // 【v54】横屏车机：RNN shared element 在「返回按钮右侧」的 flex 封面上
+              // 算不准 X 位移、过渡呈「先上再右」两段式，这里改用页面淡入，
+              // 封面由 CarPlayer 自己从播放条位置做斜线放大动画
+              content: {
+                alpha: {
+                  from: 0,
+                  to: 1,
+                  duration: 260,
+                },
+              },
+            } : {
               sharedElementTransitions: [
                 {
                   fromId: NAV_SHEAR_NATIVE_IDS.playDetail_pic,
@@ -190,7 +202,7 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
               //     duration: 300,
               //   },
               // },
-            },
+            }),
             pop: {
               content: {
                 translationX: {

@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { Animated, Easing, TouchableOpacity, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
 import Text from '@/components/common/Text'
@@ -12,6 +12,7 @@ import commonState from '@/store/common/state'
 import { NAV_SHEAR_NATIVE_IDS } from '@/config/constant'
 import { createStyle } from '@/utils/tools'
 import { playPrev, playNext, togglePlay } from '@/core/player/player'
+import { getPlayBarCoverRect } from '@/utils/coverTransition'
 
 import Btn from './components/Btn'
 import CommentBtn from './components/CommentBtn'
@@ -38,11 +39,46 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
   const { maxPlayTimeStr, nowPlayTimeStr } = useProgress()
   const isPlay = useIsPlay()
   const popupRef = useRef<SettingPopupType>(null)
-  // 【v53】封面阴影延迟到 shared element 进入动画完成后再加，避免阴影提前出现干扰过渡
+  // 【v53】封面阴影延迟到进入动画完成后再加，避免阴影提前出现
   const [coverElevation, setCoverElevation] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => { setCoverElevation(true) }, 320)
     return () => { clearTimeout(t) }
+  }, [])
+
+  // 【v54】横屏车机封面「斜线放大」：从底部播放条封面位置/尺寸，同时 translate+scale
+  // 斜线过渡到最终位置/尺寸（RNN shared element 在此布局下 X 算不准，改自己实现）
+  const coverRef = useRef<View>(null)
+  const coverAnim = useRef({
+    tx: new Animated.Value(0),
+    ty: new Animated.Value(0),
+    scale: new Animated.Value(1),
+    opacity: new Animated.Value(0),
+  }).current
+  useEffect(() => {
+    const startRect = getPlayBarCoverRect()
+    if (!startRect) {
+      coverAnim.opacity.setValue(1)
+      return
+    }
+    coverRef.current?.measureInWindow((fx, fy, fw, fh) => {
+      if (fw <= 0 || fh <= 0) {
+        coverAnim.opacity.setValue(1)
+        return
+      }
+      const dx = (startRect.x + startRect.width / 2) - (fx + fw / 2)
+      const dy = (startRect.y + startRect.height / 2) - (fy + fh / 2)
+      const s = startRect.width / fw
+      coverAnim.tx.setValue(dx)
+      coverAnim.ty.setValue(dy)
+      coverAnim.scale.setValue(s)
+      coverAnim.opacity.setValue(1)
+      Animated.parallel([
+        Animated.timing(coverAnim.tx, { toValue: 0, duration: 280, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(coverAnim.ty, { toValue: 0, duration: 280, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(coverAnim.scale, { toValue: 1, duration: 280, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      ]).start()
+    })
   }, [])
 
   const back = () => {
@@ -91,12 +127,19 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
               backgroundColor: '#4a4a52',
             }} />
           </View>
-          <Image url={musicInfo.pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={{
+          <Animated.View ref={coverRef} style={{
             width: coverSize,
             height: coverSize,
-            borderRadius: 6,
-            elevation: coverElevation ? 4 : 0,
-          }} />
+            opacity: coverAnim.opacity,
+            transform: [{ translateX: coverAnim.tx }, { translateY: coverAnim.ty }, { scale: coverAnim.scale }],
+          }}>
+            <Image url={musicInfo.pic} nativeID={NAV_SHEAR_NATIVE_IDS.playDetail_pic} style={{
+              width: coverSize,
+              height: coverSize,
+              borderRadius: 6,
+              elevation: coverElevation ? 4 : 0,
+            }} />
+          </Animated.View>
         </View>
         <View style={styles.infoText}>
           {/* 【优化】歌名过长时不再被截断成一行：允许折成两行，超出两行才省略；
