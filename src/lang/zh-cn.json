@@ -481,7 +481,7 @@
   "setting_sync_code_input_tip": "请输入连接码",
   "setting_sync_code_label": "首次连接需要输入连接码",
   "nav_roam": "歌曲漫游",
-  "block_list_title": "不喜欢的歌曲（屏蔽规则）",
+  "block_list_title": "屏蔽歌手/关键词",
   "block_list_label": "共 {num} 条规则",
   "block_list_edit_btn": "编辑规则",
   "block_list_saved_tip": "屏蔽规则已保存",
@@ -761,5 +761,9 @@
   "roam_mode_explorative_title": "探索",
   "roam_mode_conservative_desc": "80% 偏好",
   "roam_mode_balanced_desc": "70% 偏好",
-  "roam_mode_explorative_desc": "50% 偏好"
+  "roam_mode_explorative_desc": "50% 偏好",
+  "download_setting_dir_browse": "任选路径",
+  "download_dir_browse_title": "选择下载目录",
+  "download_dir_select": "选择此目录",
+  "download_dir_empty": "无子目录"
 }

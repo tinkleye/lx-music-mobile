@@ -13,6 +13,8 @@ import IsShowLyricTranslation from './IsShowLyricTranslation'
 import IsShowLyricRoma from './IsShowLyricRoma'
 import IsS2T from './IsS2T'
 import MaxCache from './MaxCache'
+import DislikeList from '../Other/DislikeList'
+import BlockList from '../Other/BlockList'
 import { useI18n } from '@/lang'
 
 
@@ -33,6 +35,9 @@ export default memo(() => {
       <IsS2T />
       <MaxCache />
       <PlayHighQuality />
+      {/* 【v45】不喜欢的歌曲（原「其他」分组）移到播放设置下 */}
+      <DislikeList />
+      <BlockList />
     </Section>
   )
 })

@@ -481,7 +481,7 @@
   "setting_sync_code_input_tip": "請輸入連線碼",
   "setting_sync_code_label": "首次連線需要輸入連線碼",
   "nav_roam": "歌曲漫遊",
-  "block_list_title": "不喜歡的歌曲（封鎖規則）",
+  "block_list_title": "封鎖歌手/關鍵詞",
   "block_list_label": "共 {num} 條規則",
   "block_list_edit_btn": "編輯規則",
   "block_list_saved_tip": "封鎖規則已儲存",
@@ -761,5 +761,9 @@
   "roam_mode_explorative_title": "探索",
   "roam_mode_conservative_desc": "80% 偏好",
   "roam_mode_balanced_desc": "70% 偏好",
-  "roam_mode_explorative_desc": "50% 偏好"
+  "roam_mode_explorative_desc": "50% 偏好",
+  "download_setting_dir_browse": "任選路徑",
+  "download_dir_browse_title": "選擇下載目錄",
+  "download_dir_select": "選擇此目錄",
+  "download_dir_empty": "無子目錄"
 }

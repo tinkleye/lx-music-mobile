@@ -118,21 +118,10 @@ const ListItem = ({ item, activeId, checking, fallbackIndex, fallbackTotal, onRe
               : null
           }
           <CheckBox check={item.allowShowUpdateAlert} label={t('user_api_allow_show_update_alert')} onChange={changeAllowShowUpdateAlert} size={0.86} />
-          {/* 【v44】查看详情 / 复制源地址 / 补充来源地址 移到「允许显示更新弹窗」同一行 */}
+          {/* 【v45】查看详情（复制地址 / 补地址已收进详情页） */}
           <TouchableOpacity style={styles.orderBtn} onPress={() => { onShowDetail(item) }}>
             <Text size={11} color={theme['c-primary-font']}>{t('user_api_detail_btn')}</Text>
           </TouchableOpacity>
-          {
-            item.sourceUrl ? (
-              <TouchableOpacity style={styles.orderBtn} onPress={() => { onCopyUrl(item) }}>
-                <Text size={11} color={theme['c-primary-font']}>{t('user_api_copy_url_btn')}</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.orderBtn} onPress={() => { onAddUrl(item) }}>
-                <Text size={11} color={theme['c-primary-font']}>{t('user_api_add_url_btn')}</Text>
-              </TouchableOpacity>
-            )
-          }
         </View>
       </View>
       <View style={styles.listItemRight}>
@@ -332,7 +321,19 @@ export default () => {
                   <Text size={12} color={theme['c-primary-font']}>{`${t('user_api_detail_source_url')}: ${detailItem.sourceUrl}`}</Text>
                 </TouchableOpacity>
               ) : (
-                <Text size={12} color={theme['c-font-label']}>{t('user_api_detail_none_url')}</Text>
+                <>
+                  <Text size={12} color={theme['c-font-label']}>{t('user_api_detail_none_url')}</Text>
+                  {/* 【v45】补地址收进详情页：先关详情再打开补地址弹窗 */}
+                  <TouchableOpacity
+                    style={styles.detailAddUrl}
+                    onPress={() => {
+                      detailDialogRef.current?.setVisible(false)
+                      handleShowAddUrl(detailItem)
+                    }}
+                  >
+                    <Text size={12} color={theme['c-primary-font']}>{t('user_api_add_url_btn')}</Text>
+                  </TouchableOpacity>
+                </>
               )
             }
           </View>
@@ -366,6 +367,11 @@ const styles = createStyle({
     paddingTop: 8,
     paddingBottom: 8,
     gap: 8,
+  },
+  detailAddUrl: {
+    alignSelf: 'flex-start',
+    paddingTop: 4,
+    paddingBottom: 2,
   },
   urlInput: {
     borderWidth: 1,

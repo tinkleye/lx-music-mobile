@@ -481,7 +481,7 @@
   "setting_sync_code_input_tip": "Please enter the connection code",
   "setting_sync_code_label": "Need to enter the connection code for the first connection",
   "nav_roam": "Music Roam",
-  "block_list_title": "Disliked Songs (Block Rules)",
+  "block_list_title": "Block Singers / Keywords",
   "block_list_label": "{num} rules",
   "block_list_edit_btn": "Edit rules",
   "block_list_saved_tip": "Block rules saved",
@@ -761,5 +761,9 @@
   "roam_mode_explorative_title": "Explorative",
   "roam_mode_conservative_desc": "80% preference",
   "roam_mode_balanced_desc": "70% preference",
-  "roam_mode_explorative_desc": "50% preference"
+  "roam_mode_explorative_desc": "50% preference",
+  "download_setting_dir_browse": "Browse path",
+  "download_dir_browse_title": "Choose download directory",
+  "download_dir_select": "Select this directory",
+  "download_dir_empty": "No subdirectories"
 }

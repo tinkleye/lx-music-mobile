@@ -18,6 +18,7 @@ import {
   getQualityLabel,
   QUALITY_ORDER,
 } from '@/core/download'
+import DirBrowser, { type DirBrowserType } from './DirBrowser'
 
 const CONCURRENCY_OPTIONS = [1, 2, 3, 4, 5, 6]
 const FILE_NAME_OPTIONS: LX.AppSetting['download.fileName'][] = ['歌名 - 歌手', '歌手 - 歌名', '歌名']
@@ -56,6 +57,11 @@ export default () => {
   const openDirDialog = () => {
     dirDialogRef.current?.setVisible(true)
     void getDownloadDirCandidatesGrouped().then(setDirGroups)
+  }
+  // 【v45】任选路径浏览
+  const dirBrowserRef = useRef<DirBrowserType>(null)
+  const handleBrowseSelect = (path: string) => {
+    updateSetting({ 'download.dir': path })
   }
 
   const qualityLabel = (q: LX.Quality | '') => (q === '' ? t('download_setting_quality_auto') : getQualityLabel(q))
@@ -213,8 +219,19 @@ export default () => {
           >
             <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_reset')}</Text>
           </TouchableOpacity>
+          {/* 【v45】任选路径：进入目录浏览器，逐级选择任意目录 */}
+          <TouchableOpacity
+            style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
+            onPress={() => {
+              dirDialogRef.current?.setVisible(false)
+              dirBrowserRef.current?.show()
+            }}
+          >
+            <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_browse')}</Text>
+          </TouchableOpacity>
         </View>
       </Dialog>
+      <DirBrowser ref={dirBrowserRef} onSelect={handleBrowseSelect} />
     </Section>
   )
 }

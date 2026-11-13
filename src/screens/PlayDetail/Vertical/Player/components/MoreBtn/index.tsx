@@ -4,7 +4,7 @@ import PlayModeBtn from './PlayModeBtn'
 import MusicAddBtn from './MusicAddBtn'
 import DesktopLyricBtn from './DesktopLyricBtn'
 import CommentBtn from './CommentBtn'
-import BlockSingerBtn from './BlockSingerBtn'
+import BlockSingerBtn from '@/screens/PlayDetail/components/BlockSingerBtn'
 
 export default () => {
   return (

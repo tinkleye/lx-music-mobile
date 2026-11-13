@@ -20,6 +20,7 @@ import SettingPopup, { type SettingPopupType } from '../components/SettingPopup'
 import TimeoutExitBtn from './MoreBtn/TimeoutExitBtn'
 import MusicAddBtn from './MoreBtn/MusicAddBtn'
 import PlayModeBtn from './MoreBtn/PlayModeBtn'
+import BlockSingerBtn from '@/screens/PlayDetail/components/BlockSingerBtn'
 
 // 【改造】车机模式播放页左栏：参考车机 App 截图重排
 // 顶部：返回 + 封面（黑胶唱片从封面右侧露出一截）+ 歌名/歌手
@@ -133,6 +134,7 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
       <View style={styles.subRow}>
         <TimeoutExitBtn />
         <MusicAddBtn />
+        <BlockSingerBtn size={20} />
         <CommentBtn />
         <DesktopLyricBtn />
         <Btn icon="slider" onPress={showSetting} />
