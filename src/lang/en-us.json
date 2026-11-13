@@ -768,5 +768,16 @@
   "download_dir_empty": "No subdirectories",
   "roam_mode_radical_title": "Radical",
   "roam_mode_radical_desc": "20% preference",
-  "player_blacklist": "Play blacklist"
+  "player_blacklist": "Play blacklist",
+  "download_action_attr": "Properties",
+  "download_delete_files": "Also delete local files",
+  "download_attr_title": "Song properties",
+  "download_attr_name": "Title",
+  "download_attr_singer": "Artist",
+  "download_attr_album": "Album",
+  "download_attr_quality": "Quality",
+  "download_attr_duration": "Duration",
+  "download_attr_format": "Format",
+  "download_attr_size": "Size",
+  "download_attr_path": "File path"
 }

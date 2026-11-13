@@ -768,5 +768,16 @@
   "download_dir_empty": "無子目錄",
   "roam_mode_radical_title": "激進",
   "roam_mode_radical_desc": "20% 偏好",
-  "player_blacklist": "播放黑名單"
+  "player_blacklist": "播放黑名單",
+  "download_action_attr": "屬性",
+  "download_delete_files": "同時刪除本地檔案",
+  "download_attr_title": "歌曲屬性",
+  "download_attr_name": "歌名",
+  "download_attr_singer": "歌手",
+  "download_attr_album": "專輯",
+  "download_attr_quality": "音質",
+  "download_attr_duration": "時長",
+  "download_attr_format": "格式",
+  "download_attr_size": "大小",
+  "download_attr_path": "檔案路徑"
 }

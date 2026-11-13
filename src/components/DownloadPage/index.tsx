@@ -1,12 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, TouchableOpacity, View } from 'react-native'
 
 import Text from '@/components/common/Text'
+import Dialog, { type DialogType } from '@/components/common/Dialog'
 import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import type { Message } from '@/lang'
 import { createStyle } from '@/utils/tools'
 import { BorderWidths } from '@/theme'
+import { getQualityLabel } from '@/core/download'
+import { addTempPlayList } from '@/core/player/tempPlayList'
+import { playNext } from '@/core/player/player'
+import playerState from '@/store/player/state'
+import { LIST_IDS } from '@/config/constant'
 import {
   subscribeDownloadTasks,
   getDownloadTasks,
@@ -50,6 +56,24 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)}M`
 }
 
+/** 【v51】从文件路径取扩展名（大写），无扩展名返回 '-' */
+const formatOf = (path?: string) => {
+  if (!path) return '-'
+  const i = path.lastIndexOf('.')
+  return i > 0 ? path.slice(i + 1).toUpperCase() : '-'
+}
+
+/** 【v51】属性弹窗里的一行：左标签 + 右值 */
+const AttrRow = ({ label, value }: { label: string, value: string }) => {
+  const theme = useTheme()
+  return (
+    <View style={styles.attrRow}>
+      <Text size={12} color={theme['c-font-label']} style={styles.attrLabel}>{label}</Text>
+      <Text size={12} color={theme['c-font']} style={styles.attrValue}>{value}</Text>
+    </View>
+  )
+}
+
 /**
  * 【v43】歌曲下载页面：下载中 / 已下载 / 下载失败 三个标签页，
  * 每页可勾选全部或部分，批量执行 开始 / 暂停 / 删除 / 重试。
@@ -61,6 +85,11 @@ export default () => {
   const [tasks, setTasks] = useState(getDownloadTasks())
   const [tab, setTab] = useState<TabKey>('active')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // 【v51】删除时是否同时删除本地文件（音频/歌词/封面），默认只删列表
+  const [deleteFiles, setDeleteFiles] = useState(false)
+  // 【v51】属性弹窗：当前查看属性的任务
+  const [attrTask, setAttrTask] = useState<DownloadTask | null>(null)
+  const attrDialogRef = useRef<DialogType>(null)
 
   useEffect(() => subscribeDownloadTasks(() => { setTasks([...getDownloadTasks()]) }), [])
 
@@ -92,6 +121,19 @@ export default () => {
     setSelected(new Set())
   }
 
+  // 【v51】播放已下载歌曲：加入稍后播放顶部并立即切换
+  const playTask = (task: DownloadTask) => {
+    const isPlaying = !!playerState.playMusicInfo.musicInfo
+    addTempPlayList([{ listId: LIST_IDS.PLAY_LATER, musicInfo: task.musicInfo, isTop: true }])
+    if (isPlaying) void playNext()
+  }
+
+  // 【v51】打开属性弹窗
+  const openAttr = (task: DownloadTask) => {
+    setAttrTask(task)
+    attrDialogRef.current?.setVisible(true)
+  }
+
   const renderTask = (task: DownloadTask) => {
     const percent = task.progress.total > 0 ? Math.min(100, Math.round(task.progress.loaded / task.progress.total * 100)) : 0
     const checked = selected.has(task.id)
@@ -105,9 +147,14 @@ export default () => {
         <View style={styles.rowInfo}>
           <View style={styles.rowTitle}>
             <Text size={14} numberOfLines={1}>{task.musicInfo.name}</Text>
-            <Text size={10} color={task.status == 'failed' ? theme['c-font-label'] : theme['c-primary-font']}>
-              {t(statusLabelKey[task.status])}
-            </Text>
+            {
+              // 【v51】已下载项不再显示冗余的「已完成」状态文字（tab 已表明，右侧改为属性按钮）
+              task.status != 'done' ? (
+                <Text size={10} color={task.status == 'failed' ? theme['c-font-label'] : theme['c-primary-font']}>
+                  {t(statusLabelKey[task.status])}
+                </Text>
+              ) : null
+            }
           </View>
           <Text size={11} color={theme['c-font-label']} numberOfLines={1}>{task.musicInfo.singer}</Text>
           {
@@ -131,6 +178,19 @@ export default () => {
           }
         </View>
         <View style={styles.rowActions}>
+          {
+            // 【v51】已下载项右侧：播放 / 属性 / 删除
+            task.status == 'done' ? (
+              <>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => { playTask(task) }}>
+                  <Text size={11} color={theme['c-primary-font']}>{t('play')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => { openAttr(task) }}>
+                  <Text size={11} color={theme['c-primary-font']}>{t('download_action_attr')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null
+          }
           {
             task.status == 'running' || task.status == 'waiting' ? (
               <TouchableOpacity style={styles.actionBtn} onPress={() => { pauseTask(task.id) }}>
@@ -159,7 +219,7 @@ export default () => {
               </TouchableOpacity>
             ) : null
           }
-          <TouchableOpacity style={styles.actionBtn} onPress={() => { removeTask(task.id) }}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => { removeTask(task.id, deleteFiles) }}>
             <Text size={11} color={theme['c-font-label']}>{t('download_action_delete')}</Text>
           </TouchableOpacity>
         </View>
@@ -226,11 +286,38 @@ export default () => {
         <TouchableOpacity
           style={[styles.batchBtn, selected.size == 0 ? { opacity: 0.4 } : null]}
           disabled={selected.size == 0}
-          onPress={() => { runOnSelected(removeTask) }}
+          onPress={() => { runOnSelected(id => removeTask(id, deleteFiles)) }}
         >
           <Text size={12} color={theme['c-font-label']}>{t('download_action_delete')}</Text>
         </TouchableOpacity>
+        {/* 【v51】删除按钮旁的「同时删除本地文件」勾选项：勾选后删除才彻底删音频/歌词/封面 */}
+        <TouchableOpacity style={styles.batchDeleteFiles} onPress={() => { setDeleteFiles(v => !v) }}>
+          <View style={{ ...styles.checkSquare, backgroundColor: deleteFiles ? theme['c-primary'] : 'transparent', borderColor: deleteFiles ? theme['c-primary'] : theme['c-500'] }}>
+            {deleteFiles ? <Text size={12} color={theme['c-primary-font']}>✓</Text> : null}
+          </View>
+          <Text size={12} color={theme['c-font-label']}>{t('download_delete_files')}</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* 【v51】歌曲属性弹窗 */}
+      <Dialog ref={attrDialogRef} title={t('download_attr_title')} width={380}>
+        <View style={styles.attrBox}>
+          {
+            attrTask ? (
+              <>
+                <AttrRow label={t('download_attr_name')} value={attrTask.musicInfo.name} />
+                <AttrRow label={t('download_attr_singer')} value={attrTask.musicInfo.singer} />
+                <AttrRow label={t('download_attr_album')} value={attrTask.musicInfo.meta.albumName || '-'} />
+                <AttrRow label={t('download_attr_quality')} value={getQualityLabel(attrTask.quality)} />
+                <AttrRow label={t('download_attr_duration')} value={attrTask.musicInfo.interval || '-'} />
+                <AttrRow label={t('download_attr_format')} value={formatOf(attrTask.filePath)} />
+                <AttrRow label={t('download_attr_size')} value={formatBytes(attrTask.progress.total)} />
+                <AttrRow label={t('download_attr_path')} value={attrTask.filePath || '-'} />
+              </>
+            ) : null
+          }
+        </View>
+      </Dialog>
     </View>
   )
 }
@@ -323,5 +410,31 @@ const styles = createStyle({
   },
   batchBtn: {
     paddingHorizontal: 4,
+  },
+  // 【v51】底部删除按钮旁的「同时删除本地文件」勾选项
+  batchDeleteFiles: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 4,
+  },
+  // 【v51】属性弹窗
+  attrBox: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  attrRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  attrLabel: {
+    width: 60,
+    flexShrink: 0,
+    lineHeight: 18,
+  },
+  attrValue: {
+    flex: 1,
+    lineHeight: 18,
   },
 })

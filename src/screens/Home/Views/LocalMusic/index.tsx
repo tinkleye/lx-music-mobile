@@ -218,7 +218,11 @@ export default () => {
           styles.tabItem,
           viewMode == tab.id ? { ...styles.tabActive, borderBottomColor: theme['c-primary'] } : null,
         ]}
-        onPress={() => { setViewMode(tab.id) }}
+        onPress={() => {
+          // 【v51】点击视图入口时退出下载页并跳转
+          if (showDownload) setShowDownload(false)
+          setViewMode(tab.id)
+        }}
       >
         <View style={styles.tabInner}>
           {tab.icon ? renderTabIcon(tab.icon, viewMode == tab.id, 14) : null}
@@ -239,7 +243,11 @@ export default () => {
           styles.sideItem,
           viewMode == tab.id ? { ...styles.sideItemActive, borderLeftColor: theme['c-primary'] } : null,
         ]}
-        onPress={() => { setViewMode(tab.id) }}
+        onPress={() => {
+          // 【v51】点击视图入口时退出下载页并跳转
+          if (showDownload) setShowDownload(false)
+          setViewMode(tab.id)
+        }}
       >
         {tab.icon ? renderTabIcon(tab.icon, viewMode == tab.id, 16) : null}
         <Text numberOfLines={1} style={{ ...styles.sideText, color: viewMode == tab.id ? theme['c-primary'] : theme['c-font'] }}>

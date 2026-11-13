@@ -1,6 +1,7 @@
 import { saveData, getData } from '@/plugins/storage'
 import settingState from '@/store/setting/state'
-import { startDownload, getDownloadQualitys, QUALITY_ORDER, DownloadCanceledError, type DownloadProgress } from '@/core/download'
+import { startDownload, getDownloadQualitys, QUALITY_ORDER, DownloadCanceledError, type DownloadProgress, type DownloadResult } from '@/core/download'
+import { readDir, unlink } from '@/utils/fs'
 import { toast } from '@/utils/tools'
 
 /**
@@ -26,6 +27,8 @@ export interface DownloadTask {
   status: DownloadTaskStatus
   progress: DownloadProgress
   error?: string
+  /** 【v51】下载完成后落盘的音频文件路径（删除本地文件时用） */
+  filePath?: string
 }
 
 let tasks: DownloadTask[] = []
@@ -74,8 +77,9 @@ const runTask = (task: DownloadTask) => {
     },
   })
   runningHandles.set(task.id, handle)
-  handle.promise.then(() => {
+  handle.promise.then((res: DownloadResult) => {
     task.status = 'done'
+    task.filePath = res.filePath
     toast(global.i18n.t('download_task_done_tip', { name: task.musicInfo.name }))
   }).catch((err: Error) => {
     if (pausedIds.has(task.id)) {
@@ -207,7 +211,37 @@ export const cancelTask = (id: string) => {
   }
 }
 
-export const removeTask = (id: string) => {
+/**
+ * 【v51】删除下载任务落盘的本地文件：音频 + 同 basename 的歌词(.lrc)/封面(任意扩展名)。
+ * 下载后处理（applyDownloadPostProcess）生成的附加文件与音频同目录、同 basename，
+ * 因此按「去掉扩展名后的文件名 == 音频 basename」匹配即可精确覆盖全部相关文件。
+ */
+const removeDownloadedFiles = async(filePath: string) => {
+  const slash = filePath.lastIndexOf('/')
+  const dir = filePath.slice(0, slash)
+  const fileName = filePath.slice(slash + 1)
+  const dot = fileName.lastIndexOf('.')
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName
+  try {
+    const files = await readDir(dir)
+    for (const f of files) {
+      if (!f.isFile) continue
+      const name = f.name
+      const n = name.lastIndexOf('.') > 0 ? name.slice(0, name.lastIndexOf('.')) : name
+      if (n == base) await unlink(f.path).catch(() => {})
+    }
+  } catch (err) {
+    console.log('remove downloaded files failed:', err)
+  }
+}
+
+/**
+ * 移除下载任务。
+ * @param removeFiles 为 true 时同时删除落盘的音频/歌词/封面文件（仅已完成的、有 filePath 的任务）
+ */
+export const removeTask = (id: string, removeFiles: boolean = false) => {
+  const task = tasks.find(t => t.id == id)
+  if (removeFiles && task?.filePath) void removeDownloadedFiles(task.filePath)
   tasks = tasks.filter(t => t.id != id)
   persist()
   notify()

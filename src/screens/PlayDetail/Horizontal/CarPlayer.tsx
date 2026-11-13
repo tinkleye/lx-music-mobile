@@ -134,9 +134,10 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
       <View style={styles.subRow}>
         <TimeoutExitBtn />
         <MusicAddBtn />
-        <BlockSingerBtn size={20} />
         <CommentBtn />
         <DesktopLyricBtn />
+        {/* 【v51】屏蔽歌手图标放到歌词按钮右边 */}
+        <BlockSingerBtn size={20} />
         <Btn icon="slider" onPress={showSetting} />
       </View>
       <SettingPopup ref={popupRef} position="left" direction="horizontal" />
