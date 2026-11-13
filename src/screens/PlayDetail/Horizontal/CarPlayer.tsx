@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { TouchableOpacity, View } from 'react-native'
 
 import { Icon } from '@/components/common/Icon'
@@ -38,6 +38,12 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
   const { maxPlayTimeStr, nowPlayTimeStr } = useProgress()
   const isPlay = useIsPlay()
   const popupRef = useRef<SettingPopupType>(null)
+  // 【v53】封面阴影延迟到 shared element 进入动画完成后再加，避免阴影提前出现干扰过渡
+  const [coverElevation, setCoverElevation] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => { setCoverElevation(true) }, 320)
+    return () => { clearTimeout(t) }
+  }, [])
 
   const back = () => {
     void pop(commonState.componentIds.playDetail!)
@@ -89,7 +95,7 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
             width: coverSize,
             height: coverSize,
             borderRadius: 6,
-            elevation: 4,
+            elevation: coverElevation ? 4 : 0,
           }} />
         </View>
         <View style={styles.infoText}>

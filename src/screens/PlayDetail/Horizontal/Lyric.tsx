@@ -204,10 +204,12 @@ export default () => {
       listLayoutInfoRef.current.lineHeights = []
       listLayoutInfoRef.current.lineCount = lyricLines.length
       listLayoutInfoRef.current.firstText = lyricLines[0]?.text ?? ''
+      // 【v53】只有「真的换歌」才重置行号；同歌重解析（进/出沉浸歌词切换翻译）
+      // 保持当前行，避免 lineRef 被清零导致列表闪到开头再滚回
+      lineRef.current.prevLine = 0
+      lineRef.current.line = 0
     }
     const prevPlayLine = lineRef.current.line
-    lineRef.current.prevLine = 0
-    lineRef.current.line = 0
     if (!flatListRef.current) return
     if (!sameSong) {
       flatListRef.current.scrollToOffset({
@@ -237,6 +239,10 @@ export default () => {
 
   useEffect(() => {
     if (line < 0) return
+    // 【v53】歌词重解析（同歌，如进/出沉浸歌词切换翻译）时 line 会先被
+    // setLyricCallback 置 0、再由 PlayHook 恢复到真实行。line=0 是瞬时假跳变，
+    // 跳过它，避免列表先滚到开头再滚回当前位置
+    if (line == 0 && lineRef.current.line > 0) return
     lineRef.current.prevLine = lineRef.current.line
     lineRef.current.line = line
     if (!flatListRef.current || isPauseScrollRef.current) return

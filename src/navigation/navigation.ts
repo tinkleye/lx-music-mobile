@@ -154,7 +154,9 @@ export function pushPlayDetailScreen(componentId: string, skipAnimation = false)
                 {
                   fromId: NAV_SHEAR_NATIVE_IDS.playDetail_pic,
                   toId: NAV_SHEAR_NATIVE_IDS.playDetail_pic,
-                  interpolation: { type: 'spring' },
+                  // 【v53】spring 在小图→大图时回弹明显、观感像「跳」，
+                  // 换成先加速后减速（ease-in-out）的平滑过渡，无回弹
+                  interpolation: { type: 'accelerateDecelerate' },
                 },
               ],
               elementTransitions: [

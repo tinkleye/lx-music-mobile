@@ -46,10 +46,18 @@ const persist = () => {
   if (persistTimer) clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
     persistTimer = null
-    const pending = tasks
-      .filter(t => t.status == 'waiting' || t.status == 'running')
-      .map(t => ({ id: t.id, musicInfo: t.musicInfo, quality: t.quality }))
-    void saveData(PERSIST_KEY, pending).catch(() => {})
+    // 【v53】保存全部任务（含已完成/失败/暂停），重启后「已下载」「下载失败」
+    // 列表不再被清空；filePath 一并持久化，属性弹窗/删除本地文件在重启后仍可用
+    const all = tasks.map(t => ({
+      id: t.id,
+      musicInfo: t.musicInfo,
+      quality: t.quality,
+      status: t.status,
+      progress: t.progress,
+      error: t.error,
+      filePath: t.filePath,
+    }))
+    void saveData(PERSIST_KEY, all).catch(() => {})
   }, 800)
 }
 
@@ -266,21 +274,38 @@ export const getActiveTaskCount = () => {
   return tasks.filter(t => t.status == 'waiting' || t.status == 'running').length
 }
 
-/** App 启动时恢复未完成任务（重新排队，从头下载） */
+/** 持久化的任务快照（含全部状态） */
+type PersistedTask = {
+  id: string
+  musicInfo: LX.Music.MusicInfo
+  quality: LX.Quality
+  status: DownloadTaskStatus
+  progress: DownloadProgress
+  error?: string
+  filePath?: string
+}
+
+const genId = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
+
+/** App 启动时恢复下载列表：未完成的重新排队，已终止的按原状态恢复 */
 export const initDownloadQueue = async() => {
   if (initialized) return
   initialized = true
   try {
-    const pending = await getData<Array<{ id: string, musicInfo: LX.Music.MusicInfo, quality: LX.Quality }>>(PERSIST_KEY)
-    if (Array.isArray(pending) && pending.length) {
-      for (const item of pending) {
+    const saved = await getData<PersistedTask[]>(PERSIST_KEY)
+    if (Array.isArray(saved) && saved.length) {
+      for (const item of saved) {
         if (!item?.musicInfo) continue
-        tasks.unshift({
-          id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        // 【v53】waiting/running 重启后从头重新下载；其余按原状态恢复（done 保留 filePath）
+        const incomplete = item.status == 'waiting' || item.status == 'running'
+        tasks.push({
+          id: item.id ?? genId(),
           musicInfo: item.musicInfo,
           quality: item.quality,
-          status: 'waiting',
-          progress: { loaded: 0, total: 0 },
+          status: incomplete ? 'waiting' : item.status,
+          progress: incomplete ? { loaded: 0, total: 0 } : (item.progress ?? { loaded: 0, total: 0 }),
+          error: incomplete ? undefined : item.error,
+          filePath: item.filePath,
         })
       }
       notify()

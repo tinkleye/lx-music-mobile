@@ -226,9 +226,20 @@ function CarPagedListInner<T>({
     const sig = data.length
       ? (keyExtractor ? keyExtractor(data[0], 0) : data[0])
       : null
+    // 【v53】切数据源（loadList 先 setList([]) 清空、再异步 setList 新数据）会经历
+    // 「空 → 有」两帧。旧逻辑无条件 firstSigRef.current = sig，清空帧把它置成 null，
+    // 新数据来了 prev==null 直接 return 漏复位，scrollX 残留旧页偏移 → 第一页偏左、
+    // 右边空白。这里：data 空时直接复位滚动位置、且不覆盖 firstSigRef。
+    if (sig == null) {
+      pageRef.current = 0
+      lastXRef.current = 0
+      setCurrentPage(0)
+      scrollX.setValue(0)
+      return
+    }
     const prev = firstSigRef.current
     firstSigRef.current = sig
-    if (prev == null || sig == null || prev === sig) return
+    if (prev == null || prev === sig) return
     pageRef.current = 0
     lastXRef.current = 0
     setCurrentPage(0)
