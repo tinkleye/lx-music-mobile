@@ -141,7 +141,7 @@ export default () => {
       <View key={task.id} style={{ ...styles.row, borderBottomColor: theme['c-primary-light-100-alpha-200'] }}>
         <TouchableOpacity style={styles.checkBox} onPress={() => { toggleSelect(task.id) }}>
           <View style={{ ...styles.checkSquare, backgroundColor: checked ? theme['c-primary'] : 'transparent', borderColor: checked ? theme['c-primary'] : theme['c-500'] }}>
-            {checked ? <Text size={12} color={theme['c-primary-font']}>✓</Text> : null}
+            {checked ? <Text size={12} color={theme['c-content-background']}>✓</Text> : null}
           </View>
         </TouchableOpacity>
         <View style={styles.rowInfo}>
@@ -258,7 +258,7 @@ export default () => {
       <View style={{ ...styles.batchBar, borderTopColor: theme['c-primary-light-100-alpha-200'] }}>
         <TouchableOpacity style={styles.batchSelect} onPress={toggleSelectAll}>
           <View style={{ ...styles.checkSquare, backgroundColor: allSelected ? theme['c-primary'] : 'transparent', borderColor: allSelected ? theme['c-primary'] : theme['c-500'] }}>
-            {allSelected ? <Text size={12} color={theme['c-primary-font']}>✓</Text> : null}
+            {allSelected ? <Text size={12} color={theme['c-content-background']}>✓</Text> : null}
           </View>
           <Text size={12} color={theme['c-font-label']}>{t('download_page_select_all')}</Text>
         </TouchableOpacity>
@@ -293,7 +293,7 @@ export default () => {
         {/* 【v51】删除按钮旁的「同时删除本地文件」勾选项：勾选后删除才彻底删音频/歌词/封面 */}
         <TouchableOpacity style={styles.batchDeleteFiles} onPress={() => { setDeleteFiles(v => !v) }}>
           <View style={{ ...styles.checkSquare, backgroundColor: deleteFiles ? theme['c-primary'] : 'transparent', borderColor: deleteFiles ? theme['c-primary'] : theme['c-500'] }}>
-            {deleteFiles ? <Text size={12} color={theme['c-primary-font']}>✓</Text> : null}
+            {deleteFiles ? <Text size={12} color={theme['c-content-background']}>✓</Text> : null}
           </View>
           <Text size={12} color={theme['c-font-label']}>{t('download_delete_files')}</Text>
         </TouchableOpacity>

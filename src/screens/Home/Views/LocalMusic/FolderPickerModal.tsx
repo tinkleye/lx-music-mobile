@@ -105,8 +105,9 @@ export default memo(({ visible, excluded, onClose }: {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.mask}>
-        <View style={{ ...styles.dialog, backgroundColor: theme['c-main-background'] }}>
+      {/* 【v52】点弹窗外（遮罩）自动关闭并保存当前勾选 */}
+      <TouchableOpacity style={styles.mask} activeOpacity={1} onPress={handleClose}>
+        <View style={{ ...styles.dialog, backgroundColor: theme['c-main-background'] }} onStartShouldSetResponder={() => true}>
           <View style={styles.titleRow}>
             <Text style={{ ...styles.title, color: theme['c-font'] }}>{t('local_music_pick_folder')}</Text>
             <Text style={{ ...styles.count, color: theme['c-font-label'] }}>
@@ -147,7 +148,7 @@ export default memo(({ visible, excluded, onClose }: {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   )
 })
