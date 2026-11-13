@@ -13,7 +13,7 @@ export default () => {
       <MusicAddBtn />
       <PlayModeBtn />
       <CommentBtn />
-      <BlockSingerBtn />
+      <BlockSingerBtn size={24} />
     </View>
   )
 }

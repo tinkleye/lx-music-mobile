@@ -33,8 +33,11 @@ export default ({ size = 22 }: { size?: number }) => {
   }
 
   const iconSize = scaleSizeW(size)
-  const slashLen = iconSize * 1.15
-  const slashThick = Math.max(1.2, iconSize * 0.1)
+  // 【v49】love 字形本身占满画布（左右零留白），渲染时右端贴边被削。
+  // 手动把 love 缩到容器 82% 四周留白，斜杠同步缩放，不再贴边。
+  const heartSize = iconSize * 0.82
+  const slashLen = heartSize * 1.25
+  const slashThick = Math.max(1.2, heartSize * 0.13)
 
   return (
     <TouchableOpacity
@@ -43,7 +46,7 @@ export default ({ size = 22 }: { size?: number }) => {
       onPress={() => { void handleBlock() }}
     >
       <View style={{ width: iconSize, height: iconSize, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name="love" color={theme['c-font-label']} rawSize={iconSize} />
+        <Icon name="love" color={theme['c-font-label']} rawSize={heartSize} />
         <View
           style={{
             position: 'absolute',
