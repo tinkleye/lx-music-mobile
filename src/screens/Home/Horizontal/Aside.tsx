@@ -96,17 +96,17 @@ const styles = createStyle({
   },
 })
 
-const Header = () => {
+const Header = ({ onBeforeNavigate }: { onBeforeNavigate?: () => void }) => {
   const theme = useTheme()
   const statusBarHeight = useStatusbarHeight()
   return (
     <View style={{ paddingTop: statusBarHeight }}>
       <View style={styles.header}>
-        {/* 【v33】logo 可点：点击进入驾驶页（驾驶页不再占导航栏图标） */}
-        <TouchableOpacity onPress={() => { setNavActiveId('nav_drive') }} activeOpacity={0.7}>
+        {/* 【v33】logo 可点：点击进入驾驶页（驾驶页不再占导航栏图标）；
+            【v50】播放页里复用时也要先退出播放页，否则驾驶舱被播放页盖住看不到 */}
+        <TouchableOpacity onPress={() => { onBeforeNavigate?.(); setNavActiveId('nav_drive') }} activeOpacity={0.7}>
           <Icon name="logo" color={theme['c-primary-dark-100-alpha-300']} size={22} />
         </TouchableOpacity>
-        {/* <Text style={styles.headerText} size={16} color={theme['c-primary-dark-100-alpha-300']}>LX Music</Text> */}
       </View>
     </View>
   )
@@ -206,7 +206,7 @@ export default memo(({ onBeforeNavigate }: AsideProps) => {
         paddingBottom: carMode ? 0 : styles.container.paddingBottom,
       }}
     >
-      <Header />
+      <Header onBeforeNavigate={onBeforeNavigate} />
       <ScrollView style={styles.menus}>
         <View style={styles.list}>
           {NAV_MENUS.map(menu => <MenuItem key={menu.id} id={menu.id} icon={menu.icon} onPress={handlePress} clickableActive={!!onBeforeNavigate} />)}

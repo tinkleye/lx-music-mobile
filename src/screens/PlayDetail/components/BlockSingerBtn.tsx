@@ -36,8 +36,9 @@ export default ({ size = 22 }: { size?: number }) => {
   // 【v49】love 字形本身占满画布（左右零留白），渲染时右端贴边被削。
   // 手动把 love 缩到容器 82% 四周留白，斜杠同步缩放，不再贴边。
   const heartSize = iconSize * 0.82
-  const slashLen = heartSize * 1.25
-  const slashThick = Math.max(1.2, heartSize * 0.13)
+  // 【v50】斜杠方向：+36deg = 左上到右下（\）；上端再长一点（slashLen 加大 + 整体上移）、更细
+  const slashLen = heartSize * 1.4
+  const slashThick = Math.max(1.2, heartSize * 0.1)
 
   return (
     <TouchableOpacity
@@ -51,12 +52,12 @@ export default ({ size = 22 }: { size?: number }) => {
           style={{
             position: 'absolute',
             left: (iconSize - slashLen) / 2,
-            top: (iconSize - slashThick) / 2,
+            top: (iconSize - slashThick) / 2 - heartSize * 0.05,
             width: slashLen,
             height: slashThick,
             borderRadius: slashThick / 2,
             backgroundColor: theme['c-font-label'],
-            transform: [{ rotate: '-36deg' }],
+            transform: [{ rotate: '36deg' }],
           }} />
       </View>
     </TouchableOpacity>
