@@ -144,7 +144,7 @@ export default () => {
         </SubTitle>
 
         {/* 内嵌标签 */}
-        <SubTitle title={t('download_setting_embed')}>{null}</SubTitle>
+        <SubTitle title={t('download_setting_embed')} compact />
         <CheckBoxItem
           check={isEmbedCover}
           label={t('download_setting_embed_cover')}
@@ -157,7 +157,7 @@ export default () => {
           onChange={val => { updateSetting({ 'download.isEmbedLyric': val }) }} />
 
         {/* 附加文件 */}
-        <SubTitle title={t('download_setting_extra')}>{null}</SubTitle>
+        <SubTitle title={t('download_setting_extra')} compact />
         <CheckBoxItem
           check={isSaveLrc}
           label={t('download_setting_save_lrc')}

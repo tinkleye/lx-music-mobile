@@ -765,5 +765,7 @@
   "download_setting_dir_browse": "Browse path",
   "download_dir_browse_title": "Choose download directory",
   "download_dir_select": "Select this directory",
-  "download_dir_empty": "No subdirectories"
+  "download_dir_empty": "No subdirectories",
+  "roam_mode_radical_title": "Radical",
+  "roam_mode_radical_desc": "20% preference"
 }

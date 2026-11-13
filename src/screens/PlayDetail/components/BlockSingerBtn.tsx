@@ -30,7 +30,7 @@ export default ({ size = 22 }: { size?: number }) => {
     toast(t('block_singer_done_tip', { singer: name }))
   }
 
-  const slashLen = size * 1.2
+  const slashLen = size * 1.35
   const slashThick = Math.max(1.5, size * 0.14)
 
   return (
@@ -47,8 +47,8 @@ export default ({ size = 22 }: { size?: number }) => {
             width: slashLen,
             height: slashThick,
             borderRadius: slashThick / 2,
-            backgroundColor: theme['c-content-background'],
-            transform: [{ rotate: '-45deg' }],
+            backgroundColor: theme['c-font-label'],
+            transform: [{ rotate: '-36deg' }],
           }} />
       </View>
     </TouchableOpacity>

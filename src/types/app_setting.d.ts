@@ -409,7 +409,7 @@ declare global {
       /**
        * 【v42】歌曲漫游风格浓度：conservative 保守 / balanced 均衡 / explorative 探索
        */
-      'roam.mode': 'conservative' | 'balanced' | 'explorative'
+      'roam.mode': 'conservative' | 'balanced' | 'explorative' | 'radical'
 
       /**
        * 【v42】不参与漫游的歌单 id 列表

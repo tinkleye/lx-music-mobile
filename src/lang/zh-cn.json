@@ -765,5 +765,7 @@
   "download_setting_dir_browse": "任选路径",
   "download_dir_browse_title": "选择下载目录",
   "download_dir_select": "选择此目录",
-  "download_dir_empty": "无子目录"
+  "download_dir_empty": "无子目录",
+  "roam_mode_radical_title": "激进",
+  "roam_mode_radical_desc": "20% 偏好"
 }

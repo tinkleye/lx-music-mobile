@@ -105,16 +105,19 @@ export default forwardRef<DirBrowserType, { onSelect: (path: string) => void }>(
               : <Text size={12} color={theme['c-font-label']}>{t('download_dir_empty')}</Text>
           }
         </ScrollView>
-        <TouchableOpacity
-          style={{ ...styles.selectBtn, backgroundColor: isRoot ? theme['c-300'] : theme['c-primary'] }}
-          disabled={isRoot}
-          onPress={() => {
-            dialogRef.current?.setVisible(false)
-            onSelect(currentPath)
-          }}
-        >
-          <Text size={14} color={isRoot ? theme['c-font-label'] : theme['c-primary-font']}>{t('download_dir_select')}</Text>
-        </TouchableOpacity>
+        {
+          !isRoot ? (
+            <TouchableOpacity
+              style={{ ...styles.selectBtn, backgroundColor: theme['c-primary'] }}
+              onPress={() => {
+                dialogRef.current?.setVisible(false)
+                onSelect(currentPath)
+              }}
+            >
+              <Text size={14} color={theme['c-primary-font']}>{t('download_dir_select')}</Text>
+            </TouchableOpacity>
+          ) : null
+        }
       </View>
     </Dialog>
   )

@@ -34,6 +34,7 @@ const MODE_RATIOS: Record<LX.AppSetting['roam.mode'], number> = {
   conservative: 0.8,
   balanced: 0.7,
   explorative: 0.5,
+  radical: 0.2,
 }
 
 export interface RoamState {

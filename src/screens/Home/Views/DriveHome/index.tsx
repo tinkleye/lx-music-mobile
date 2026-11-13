@@ -8,7 +8,7 @@ import { useTheme } from '@/store/theme/hook'
 import { createStyle, toast } from '@/utils/tools'
 import { setNavActiveId, updateSetting } from '@/core/common'
 import { startRoam, endRoam, getRoamState, nextRoamBatch } from '@/core/roam'
-import settingState from '@/store/setting/state'
+import { useSettingValue } from '@/store/setting/hook'
 import { useI18n } from '@/lang'
 import type { Message } from '@/lang'
 import type { InitState as CommonState } from '@/store/common/state'
@@ -44,13 +44,15 @@ export default () => {
   const [page, setPage] = useState(0)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const roamDialogRef = useRef<DialogType>(null)
-  const roamMode = settingState.setting['roam.mode']
+  // 【v46】用响应式 hook 读取，切换档位后按钮高亮立即更新
+  const roamMode = useSettingValue('roam.mode')
 
   // 【v44】漫游档位：大模块按钮用「标题 + 说明」两行展示
   const roamModeTitle = (mode: string) => {
     switch (mode) {
       case 'conservative': return t('roam_mode_conservative_title')
       case 'explorative': return t('roam_mode_explorative_title')
+      case 'radical': return t('roam_mode_radical_title')
       default: return t('roam_mode_balanced_title')
     }
   }
@@ -58,6 +60,7 @@ export default () => {
     switch (mode) {
       case 'conservative': return t('roam_mode_conservative_desc')
       case 'explorative': return t('roam_mode_explorative_desc')
+      case 'radical': return t('roam_mode_radical_desc')
       default: return t('roam_mode_balanced_desc')
     }
   }
@@ -91,7 +94,7 @@ export default () => {
     void startRoam()
   }
 
-  const handleModeSelect = (mode: 'conservative' | 'balanced' | 'explorative') => {
+  const handleModeSelect = (mode: 'conservative' | 'balanced' | 'explorative' | 'radical') => {
     void updateSetting({ 'roam.mode': mode })
     toast(t('roam_mode_changed_tip'))
     roamDialogRef.current?.setVisible(false)
@@ -175,7 +178,7 @@ export default () => {
         <View style={styles.roamBox}>
           <Text style={styles.roamDesc} size={12} color={theme['c-font-label']}>{t('roam_mode_tip')}</Text>
           <View style={styles.roamModeRow}>
-            {(['conservative', 'balanced', 'explorative'] as const).map(mode => {
+            {(['conservative', 'balanced', 'explorative', 'radical'] as const).map(mode => {
               const active = roamMode == mode
               return (
                 <TouchableOpacity
@@ -266,7 +269,9 @@ const styles = createStyle({
     borderRadius: 4,
   },
   roamBox: {
-    paddingTop: 6,
+    paddingTop: 14,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     gap: 12,
   },
   roamDesc: {
@@ -286,7 +291,7 @@ const styles = createStyle({
     borderWidth: 2,
   },
   roamModeTitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '600',
   },
   roamActionRow: {
