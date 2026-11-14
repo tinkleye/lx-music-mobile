@@ -16,6 +16,7 @@ import IsUseSystemFileSelector from './IsUseSystemFileSelector'
 import IsAlwaysKeepStatusbarHeight from './IsAlwaysKeepStatusbarHeight'
 import IsCarMode from './IsCarMode'
 import CarUIScale from './CarUIScale'
+import OpenDriveHome from './OpenDriveHome'
 import IsShowBackBtn from './IsShowBackBtn'
 import IsShowExitBtn from './IsShowExitBtn'
 import DrawerLayoutPosition from './DrawerLayoutPosition'
@@ -49,6 +50,7 @@ export default memo(() => {
       {/* 【改造】「启动时进入全屏」已并入「车机模式」，不再单独提供开关 */}
       <IsCarMode enabled={carMode} onChange={handleCarModeChange} />
       {carMode ? <CarUIScale /> : null}
+      {carMode ? <OpenDriveHome /> : null}
       <IsAlwaysKeepStatusbarHeight />
       <Theme />
       <DrawerLayoutPosition />

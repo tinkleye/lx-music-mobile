@@ -17,6 +17,7 @@ const defaultSetting: LX.AppSetting = {
   'common.alwaysKeepStatusbarHeight': false,
   // 【改造】启动时自动检查自定义源更新
   'common.autoUpdateUserApi': true,
+  'common.openDriveHome': false,
 
   'player.startupAutoPlay': false,
   'player.startupPushPlayDetailScreen': false,

@@ -103,7 +103,8 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
   return (
     visible
       ? (
-          <Dialog height='80%' ref={dialogRef} bgHide={false}>
+          <Dialog height='55%' ref={dialogRef} bgHide={false}>
+            {/* 【v55】高度降到 55%：键盘弹出后弹窗仍能完整显示（输入框内部可滚动） */}
             <View style={styles.content}>
               <RuleInput ref={inputRef} />
               <Text style={styles.inputTipText} size={13} color={theme['c-600']}>{t('setting_dislike_list_tips')}</Text>

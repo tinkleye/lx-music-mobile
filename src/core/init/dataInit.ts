@@ -31,7 +31,8 @@ export default async(appSetting: LX.AppSetting) => {
   setUserList(await getUserLists()) // 获取用户列表
   setDislikeInfo(await getDislikeInfo()) // 获取不喜欢列表
   bootLog('User list inited.')
-  setNavActiveId((await getViewPrevState()).id)
+  // 【v55】始终打开驾驶舱：勾选后启动直接落在驾驶舱页，否则恢复上次浏览的栏目
+  setNavActiveId(appSetting['common.openDriveHome'] ? 'nav_drive' : (await getViewPrevState()).id)
   void unlink(TEMP_FILE_PATH)
   // await initPrevPlayInfo(appSetting).catch(err => log.error(err)) // 初始化上次的歌曲播放信息
 }

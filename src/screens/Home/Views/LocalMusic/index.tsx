@@ -395,15 +395,17 @@ const styles = createStyle({
   sideCol: {
     width: 132,
     borderRightWidth: BorderWidths.normal,
-    paddingTop: 6,
-    paddingBottom: 10,
+    paddingTop: 4,
+    paddingBottom: 6,
   },
   sideItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 14,
+    // 【v55】收紧纵向间距：视图入口 + 下载/扫描范围/扫描 共 7 项，间距过大时
+    // 底部「扫描」会被下方播放栏挡到一点，缩小后给弹性留白更多空间
+    paddingVertical: 12,
     borderLeftWidth: 3,
     borderLeftColor: 'transparent',
   },

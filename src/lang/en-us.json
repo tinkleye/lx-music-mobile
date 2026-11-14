@@ -779,5 +779,7 @@
   "download_attr_duration": "Duration",
   "download_attr_format": "Format",
   "download_attr_size": "Size",
-  "download_attr_path": "File path"
+  "download_attr_path": "File path",
+  "setting_basic_open_drive_home": "Always open drive home",
+  "setting_basic_open_drive_home_desc": "Go directly to the drive home page on startup or when returning to home"
 }

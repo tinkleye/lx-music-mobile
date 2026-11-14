@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { TouchableOpacity, View } from 'react-native'
+import { ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 
 import Section from '../../components/Section'
 import CheckBoxItem from '../../components/CheckBoxItem'
@@ -40,6 +40,8 @@ const displayPath = (p: string, storageLabel: string, usbLabel: string) => {
 export default () => {
   const t = useI18n()
   const theme = useTheme()
+  // 【v55】目录选择弹窗按屏幕尺寸动态定宽高（车机大屏自适应，内容超高可滚动）
+  const { width: winW, height: winH } = useWindowDimensions()
   const concurrency = useSettingValue('download.concurrency')
   const isAskQuality = useSettingValue('download.isAskQuality')
   const isAutoToggle = useSettingValue('download.isAutoToggleSource')
@@ -191,45 +193,47 @@ export default () => {
           onChange={val => { updateSetting({ 'download.isAutoToggleSource': val }) }} />
       </View>
 
-      {/* 下载目录选择：内置 / U盘 分组，无自定义输入 */}
-      <Dialog ref={dirDialogRef} title={t('download_setting_dir')} width={430}>
-        <View style={styles.optionBox}>
-          {
-            dirGroups.builtin.length ? (
-              <>
-                <Text size={12} color={theme['c-font-label']}>{t('local_music_storage')}</Text>
-                {dirGroups.builtin.map(renderDirOption)}
-              </>
-            ) : null
-          }
-          {
-            dirGroups.usb.length ? (
-              <>
-                <Text size={12} color={theme['c-font-label']}>{t('local_music_usb')}</Text>
-                {dirGroups.usb.map(renderDirOption)}
-              </>
-            ) : null
-          }
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
-            onPress={() => {
-              updateSetting({ 'download.dir': '' })
-              dirDialogRef.current?.setVisible(false)
-            }}
-          >
-            <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_reset')}</Text>
-          </TouchableOpacity>
-          {/* 【v45】任选路径：进入目录浏览器，逐级选择任意目录 */}
-          <TouchableOpacity
-            style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
-            onPress={() => {
-              dirDialogRef.current?.setVisible(false)
-              dirBrowserRef.current?.show()
-            }}
-          >
-            <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_browse')}</Text>
-          </TouchableOpacity>
-        </View>
+      {/* 下载目录选择：内置 / U盘 分组，无自定义输入；内容可滚动、宽度按屏幕自适应 */}
+      <Dialog ref={dirDialogRef} title={t('download_setting_dir')} width={Math.min(winW * 0.86, 520)}>
+        <ScrollView style={{ maxHeight: Math.min(winH * 0.6, 480) }} showsVerticalScrollIndicator={false}>
+          <View style={styles.optionBox}>
+            {
+              dirGroups.builtin.length ? (
+                <>
+                  <Text size={12} color={theme['c-font-label']}>{t('local_music_storage')}</Text>
+                  {dirGroups.builtin.map(renderDirOption)}
+                </>
+              ) : null
+            }
+            {
+              dirGroups.usb.length ? (
+                <>
+                  <Text size={12} color={theme['c-font-label']}>{t('local_music_usb')}</Text>
+                  {dirGroups.usb.map(renderDirOption)}
+                </>
+              ) : null
+            }
+            <TouchableOpacity
+              style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
+              onPress={() => {
+                updateSetting({ 'download.dir': '' })
+                dirDialogRef.current?.setVisible(false)
+              }}
+            >
+              <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_reset')}</Text>
+            </TouchableOpacity>
+            {/* 【v45】任选路径：进入目录浏览器，逐级选择任意目录 */}
+            <TouchableOpacity
+              style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
+              onPress={() => {
+                dirDialogRef.current?.setVisible(false)
+                dirBrowserRef.current?.show()
+              }}
+            >
+              <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_browse')}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </Dialog>
       <DirBrowser ref={dirBrowserRef} onSelect={handleBrowseSelect} />
     </Section>

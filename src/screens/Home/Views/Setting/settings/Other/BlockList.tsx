@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { TextInput, TouchableOpacity, View } from 'react-native'
+import { ScrollView, TextInput, TouchableOpacity, View } from 'react-native'
 
 import SubTitle from '../../components/SubTitle'
 import Button from '../../components/Button'
@@ -73,43 +73,46 @@ export default memo(() => {
       </View>
 
       <Dialog ref={dialogRef} title={t('block_list_title')} width={420}>
-        {
-          showBatch ? (
-            <>
-              <Text style={styles.tip} size={12} color={theme['c-font-label']}>{t('block_list_batch_tip')}</Text>
-              <TextInput
-                style={{ ...styles.input, ...styles.inputMultiline, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
-                multiline
-                value={batchInput}
-                onChangeText={setBatchInput}
-                placeholder={t('block_list_batch_placeholder')}
-                placeholderTextColor={theme['c-300']}
-              />
-            </>
-          ) : (
-            <>
-              <Text style={styles.tip} size={12} color={theme['c-font-label']}>{t('block_list_singer_tip')}</Text>
-              <TextInput
-                style={{ ...styles.input, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
-                value={singerInput}
-                onChangeText={setSingerInput}
-                placeholder={t('block_list_singer_placeholder')}
-                placeholderTextColor={theme['c-300']}
-              />
-              <Text style={styles.tip} size={12} color={theme['c-font-label']}>{t('block_list_keyword_tip')}</Text>
-              <TextInput
-                style={{ ...styles.input, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
-                value={keywordInput}
-                onChangeText={setKeywordInput}
-                placeholder={t('block_list_keyword_placeholder')}
-                placeholderTextColor={theme['c-300']}
-              />
-              <TouchableOpacity onPress={() => { setShowBatch(true) }}>
-                <Text style={styles.batchLink} size={12} color={theme['c-primary-font']}>{t('block_list_batch_btn')}</Text>
-              </TouchableOpacity>
-            </>
-          )
-        }
+        {/* 【v55】内容可滚动：软键盘弹出后高度受限时也能滑到输入框和按钮 */}
+        <ScrollView style={styles.dialogScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {
+            showBatch ? (
+              <>
+                <Text style={styles.tip} size={12} color={theme['c-font-label']}>{t('block_list_batch_tip')}</Text>
+                <TextInput
+                  style={{ ...styles.input, ...styles.inputMultiline, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
+                  multiline
+                  value={batchInput}
+                  onChangeText={setBatchInput}
+                  placeholder={t('block_list_batch_placeholder')}
+                  placeholderTextColor={theme['c-300']}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.tip} size={12} color={theme['c-font-label']}>{t('block_list_singer_tip')}</Text>
+                <TextInput
+                  style={{ ...styles.input, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
+                  value={singerInput}
+                  onChangeText={setSingerInput}
+                  placeholder={t('block_list_singer_placeholder')}
+                  placeholderTextColor={theme['c-300']}
+                />
+                <Text style={styles.tip} size={12} color={theme['c-font-label']}>{t('block_list_keyword_tip')}</Text>
+                <TextInput
+                  style={{ ...styles.input, color: theme['c-font'], borderColor: theme['c-primary-light-100-alpha-200'] }}
+                  value={keywordInput}
+                  onChangeText={setKeywordInput}
+                  placeholder={t('block_list_keyword_placeholder')}
+                  placeholderTextColor={theme['c-300']}
+                />
+                <TouchableOpacity onPress={() => { setShowBatch(true) }}>
+                  <Text style={styles.batchLink} size={12} color={theme['c-primary-font']}>{t('block_list_batch_btn')}</Text>
+                </TouchableOpacity>
+              </>
+            )
+          }
+        </ScrollView>
         <View style={styles.btnRow}>
           <Button style={styles.btnHalf} onPress={() => { dialogRef.current?.setVisible(false) }}>{t('cancel')}</Button>
           <Button style={styles.btnHalf} onPress={() => { void handleSave() }}>{t('confirm')}</Button>
@@ -154,5 +157,8 @@ const styles = createStyle({
   },
   btnHalf: {
     width: '48%',
+  },
+  dialogScroll: {
+    maxHeight: 300,
   },
 })

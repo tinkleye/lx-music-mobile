@@ -82,6 +82,11 @@ declare global {
       'common.autoUpdateUserApi': boolean
 
       /**
+       * 【v55】始终打开驾驶舱：启动/回到首页时直接落在驾驶舱页
+       */
+      'common.openDriveHome': boolean
+
+      /**
        * 主题id
        */
       'theme.id': string

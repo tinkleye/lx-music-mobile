@@ -779,5 +779,7 @@
   "download_attr_duration": "時長",
   "download_attr_format": "格式",
   "download_attr_size": "大小",
-  "download_attr_path": "檔案路徑"
+  "download_attr_path": "檔案路徑",
+  "setting_basic_open_drive_home": "始終打開駕駛艙",
+  "setting_basic_open_drive_home_desc": "啟動或回到首頁時，直接進入駕駛艙頁面"
 }

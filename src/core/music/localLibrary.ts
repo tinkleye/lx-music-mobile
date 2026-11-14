@@ -141,7 +141,14 @@ type MetadataLike = { name?: string, singer?: string, albumName?: string, interv
 const buildMusicInfo = (item: ScannedAudioItem, metadata: MetadataLike): LX.Music.MusicInfoLocal => {
   const index = item.path.lastIndexOf('.')
   const fileName = item.path.substring(item.path.lastIndexOf('/') + 1)
-  const fileNameBase = decodeURIComponent(fileName.substring(0, index))
+  // 【v55】文件名可能含 % 等非法 URI 编码（如「100% 完美.mp3」），decodeURIComponent
+  // 会抛 URIError，导致整个扫描中断误报「扫描失败」；解码失败就保留原始文件名
+  let fileNameBase = fileName.substring(0, index)
+  try {
+    fileNameBase = decodeURIComponent(fileNameBase)
+  } catch {
+    // 保留原始文件名
+  }
   let name = metadata?.name || item.title || fileNameBase
   let singer = metadata?.singer || item.artist || ''
   // 【v40】歌手信息缺失时按「歌名 - 歌手」文件名惯例拆分（车机 U 盘常见命名）
