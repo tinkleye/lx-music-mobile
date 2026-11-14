@@ -162,7 +162,9 @@ const styles = createStyle({
   },
   dialog: {
     borderRadius: 10,
-    maxHeight: '80%',
+    // 【v63】明确高度（替代 maxHeight）：让 ScrollView 有确定的剩余空间可分配，
+    // 文件夹列表超出时在 ScrollView 内滚动（之前 maxHeight + flexGrow 仍不滚）
+    height: '80%',
     paddingTop: 16,
     paddingBottom: 12,
     paddingHorizontal: 14,

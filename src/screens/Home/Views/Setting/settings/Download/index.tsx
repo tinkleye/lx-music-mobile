@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 
 import Section from '../../components/Section'
@@ -13,6 +13,7 @@ import { createStyle, toast } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
 import { selectManagedFolder } from '@/utils/fs'
+import { isAllFilesAccessGranted, requestAllFilesAccess } from '@/utils/nativeModules/utils'
 import {
   getDownloadDirCandidatesGrouped,
   getDownloadDir,
@@ -82,6 +83,17 @@ export default () => {
     }
   }
 
+  // 【v63】Android 11+「所有文件访问」权限：未授权时提示（写公共目录/U 盘需要）
+  const [hasAllFiles, setHasAllFiles] = useState(true)
+  useEffect(() => {
+    void isAllFilesAccessGranted().then(setHasAllFiles)
+  }, [])
+  const handleRequestAllFiles = async() => {
+    const granted = await requestAllFilesAccess()
+    setHasAllFiles(granted)
+    if (granted) toast(t('download_all_files_granted'))
+  }
+
   const qualityLabel = (q: LX.Quality | '') => (q === '' ? t('download_setting_quality_auto') : getQualityLabel(q))
   const nameLabel = (n: LX.AppSetting['download.fileName']) => {
     switch (n) {
@@ -124,6 +136,16 @@ export default () => {
               <Text size={13} color={theme['c-primary']}>{t('download_setting_dir_change')}</Text>
             </TouchableOpacity>
           </View>
+          {
+            !hasAllFiles ? (
+              <View style={styles.accessRow}>
+                <Text size={12} color={theme['c-font-label']} style={styles.accessText}>{t('download_all_files_need')}</Text>
+                <TouchableOpacity style={styles.accessBtn} onPress={() => { void handleRequestAllFiles() }}>
+                  <Text size={12} color={theme['c-primary']}>{t('download_all_files_grant')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          }
         </SubTitle>
 
         {/* 默认下载音质：平铺勾选 */}
@@ -291,6 +313,20 @@ const styles = createStyle({
     marginRight: 10,
   },
   dirChangeBtn: {
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  // 【v63】所有文件访问权限提示
+  accessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  accessText: {
+    flex: 1,
+  },
+  accessBtn: {
     paddingVertical: 4,
     paddingLeft: 8,
   },

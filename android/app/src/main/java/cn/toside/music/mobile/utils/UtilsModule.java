@@ -11,6 +11,8 @@ import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
@@ -269,6 +271,35 @@ public class UtilsModule extends ReactContextBaseJavaModule {
         reactContext.getApplicationContext());
       promise.resolve(result);
     }).start();
+  }
+
+  /**
+   * 【v63】是否已授予「所有文件访问」权限（Android 11+ 写公共目录/U 盘需要）。
+   * Android 10 及以下视为已授权（无 scoped storage 强制）。
+   */
+  @ReactMethod
+  public void isAllFilesAccessGranted(final Promise promise) {
+    boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+      || Environment.isExternalStorageManager();
+    promise.resolve(granted);
+  }
+
+  /**
+   * 【v63】跳转系统设置，引导用户授予「所有文件访问」权限。
+   */
+  @ReactMethod
+  public void requestAllFilesAccess(final Promise promise) {
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+        intent.setData(Uri.parse("package:" + reactContext.getPackageName()));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        reactContext.startActivity(intent);
+      }
+      promise.resolve(true);
+    } catch (Exception e) {
+      promise.resolve(false);
+    }
   }
 
   @ReactMethod

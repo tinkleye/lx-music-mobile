@@ -784,5 +784,8 @@
   "setting_basic_open_drive_home_desc": "Go directly to the drive home page after launching the app",
   "download_setting_dir_authorize_usb": "Authorize USB directory",
   "download_setting_dir_authorized": "USB directory authorized",
-  "download_setting_dir_authorize_failed": "Authorization failed, please retry"
+  "download_setting_dir_authorize_failed": "Authorization failed, please retry",
+  "download_all_files_need": "Download to USB needs \"All files access\" permission (Android 11+)",
+  "download_all_files_grant": "Grant",
+  "download_all_files_granted": "All files access granted"
 }

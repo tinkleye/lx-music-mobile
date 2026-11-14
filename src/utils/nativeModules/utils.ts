@@ -102,3 +102,21 @@ export const requestIgnoreBatteryOptimization = async() => new Promise<boolean>(
     resolve(false)
   })
 })
+
+// 【v63】Android 11+ 写公共目录/U 盘需「所有文件访问」权限
+export const isAllFilesAccessGranted = UtilsModule.isAllFilesAccessGranted as () => Promise<boolean>
+
+export const requestAllFilesAccess = async() => new Promise<boolean>((resolve) => {
+  let subscription = AppState.addEventListener('change', (state) => {
+    if (state != 'active') return
+    subscription.remove()
+    setTimeout(() => {
+      void isAllFilesAccessGranted().then(resolve)
+    }, 1000)
+  })
+  UtilsModule.requestAllFilesAccess().then((result: boolean) => {
+    if (result) return
+    subscription.remove()
+    resolve(false)
+  })
+})

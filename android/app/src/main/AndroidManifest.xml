@@ -5,6 +5,9 @@
     <!-- 获取读写外置存储权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- 【v63】Android 11+ 写入公共目录/U 盘需「所有文件访问」权限（scoped storage 强制） -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+      tools:ignore="ScopedStorage" />
     <!-- 【车机改造】本地音乐扫描（Android 13+） -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />

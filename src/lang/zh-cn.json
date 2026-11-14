@@ -784,5 +784,8 @@
   "setting_basic_open_drive_home_desc": "启动应用后，直接进入驾驶舱页面",
   "download_setting_dir_authorize_usb": "授权 U 盘目录",
   "download_setting_dir_authorized": "U 盘目录已授权",
-  "download_setting_dir_authorize_failed": "授权失败，请重试"
+  "download_setting_dir_authorize_failed": "授权失败，请重试",
+  "download_all_files_need": "下载到 U 盘需「所有文件访问」权限（Android 11+）",
+  "download_all_files_grant": "去授权",
+  "download_all_files_granted": "已授权所有文件访问"
 }
