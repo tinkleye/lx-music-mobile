@@ -180,10 +180,9 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
           <Icon name="nextMusic" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
         </TouchableOpacity>
         {/* 【改造】当前播放列表：点击后在左栏显示队列，10 秒无操作自动返回；
-            【v56】图标颜色改与循环按钮一致（c-550），不跟上一首/下一首同色 */}
-        <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={onShowPlayList}>
-          <Icon name="menu" color={theme['c-550']} rawSize={sideBtnSize * 0.7} />
-        </TouchableOpacity>
+            【v56】图标颜色改与循环按钮一致（c-550）；
+            【v58】改用与循环按钮相同的 Btn 组件，尺寸/粗细一致 */}
+        <Btn icon="menu" onPress={onShowPlayList} />
       </View>
 
       <View style={styles.subRow}>

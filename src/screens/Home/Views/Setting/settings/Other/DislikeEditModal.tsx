@@ -1,6 +1,6 @@
-import { useRef, useImperativeHandle, forwardRef, useState, useCallback } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useState } from 'react'
 import Text from '@/components/common/Text'
-import { type LayoutChangeEvent, View } from 'react-native'
+import { ScrollView, View } from 'react-native'
 import Input, { type InputType } from '@/components/common/Input'
 import { createStyle } from '@/utils/tools'
 import { useTheme } from '@/store/theme/hook'
@@ -14,12 +14,11 @@ interface RuleInputType {
   getText: () => string
   focus: () => void
 }
-const RuleInput = forwardRef<RuleInputType, {}>((props, ref) => {
+const RuleInput = forwardRef<RuleInputType, { height: number }>(({ height }, ref) => {
   const theme = useTheme()
   const t = useI18n()
   const [text, setText] = useState('')
   const inputRef = useRef<InputType>(null)
-  const [height, setHeight] = useState(100)
 
   useImperativeHandle(ref, () => ({
     getText() {
@@ -33,30 +32,23 @@ const RuleInput = forwardRef<RuleInputType, {}>((props, ref) => {
     },
   }))
 
-  const handleLayout = useCallback(({ nativeEvent }: LayoutChangeEvent) => {
-    setHeight(nativeEvent.layout.height)
-  }, [])
-
   return (
-    <View style={styles.inputContent} onLayout={handleLayout}>
-      <Input
-        ref={inputRef}
-        value={text}
-        onChangeText={setText}
-        multiline
-        textAlignVertical="top"
-        placeholder={t('setting_dislike_list_input_tip')}
-        size={13}
-        style={{ ...styles.input, height, backgroundColor: theme['c-primary-input-background'] }}
-      />
-    </View>
+    <Input
+      ref={inputRef}
+      value={text}
+      onChangeText={setText}
+      multiline
+      textAlignVertical="top"
+      placeholder={t('setting_dislike_list_input_tip')}
+      size={13}
+      style={{ ...styles.input, height, backgroundColor: theme['c-primary-input-background'] }}
+    />
   )
 })
 
 
 export interface DislikeEditModalProps {
   onSave: (rules: string) => void
-  // onSourceChange: SourceSelectorProps['onSourceChange']
 }
 export interface DislikeEditModalType {
   show: (rules: string) => void
@@ -64,7 +56,6 @@ export interface DislikeEditModalType {
 
 export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave }, ref) => {
   const dialogRef = useRef<DialogType>(null)
-  // const sourceSelectorRef = useRef<SourceSelectorType>(null)
   const inputRef = useRef<RuleInputType>(null)
   const [visible, setVisible] = useState(false)
   const theme = useTheme()
@@ -76,10 +67,6 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
     dialogRef.current?.setVisible(true)
     requestAnimationFrame(() => {
       inputRef.current?.setText(rules.length ? rules + '\n' : rules)
-      // sourceSelectorRef.current?.setSource(source)
-      // setTimeout(() => {
-      //   inputRef.current?.focus()
-      // }, 300)
     })
   }
   useImperativeHandle(ref, () => ({
@@ -107,13 +94,14 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
     visible
       ? (
           <Dialog height={isHorizontalMode ? '72%' : '55%'} ref={dialogRef} bgHide={false}>
-            {/* 【v55】竖屏高度降到 55%：键盘弹出后弹窗仍能完整显示；
-                【v56】横屏（车机）用 72%，避免输入框被压得过矮 */}
-            <View style={styles.content}>
-              {/* 【v57】说明文字移到输入框上方，避免输入框多行后把说明文字挤到与按钮重合 */}
-              <Text style={styles.inputTipText} size={13} color={theme['c-600']}>{t('setting_dislike_list_tips')}</Text>
-              <RuleInput ref={inputRef} />
-            </View>
+            {/* 【v58】整改：内容区包 ScrollView + 输入框固定高度 + 按钮固定在底部，
+                彻底避免输入框与「取消/确认」按钮重叠；输入框内多行内容可滚动 */}
+            <ScrollView style={styles.scrollContent} keyboardShouldPersistTaps="handled">
+              <View style={styles.content}>
+                <Text style={styles.inputTipText} size={13} color={theme['c-600']}>{t('setting_dislike_list_tips')}</Text>
+                <RuleInput ref={inputRef} height={isHorizontalMode ? 200 : 160} />
+              </View>
+            </ScrollView>
             <View style={styles.btns}>
               <Button style={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} onPress={handleCancel}>
                 <Text size={14} color={theme['c-button-font']}>{t('cancel')}</Text>
@@ -129,41 +117,23 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
 
 
 const styles = createStyle({
-  content: {
+  scrollContent: {
     flexGrow: 1,
     flexShrink: 1,
+  },
+  content: {
     paddingHorizontal: 15,
     paddingTop: 15,
     paddingBottom: 10,
     flexDirection: 'column',
   },
-  col: {
-    flexDirection: 'row',
-    height: 38,
-  },
-  // selector: {
-  //   borderTopLeftRadius: 4,
-  //   borderBottomLeftRadius: 4,
-  // },
-  inputContent: {
-    flexGrow: 1,
-    flexShrink: 1,
-    // 【v56】保证输入框有足够高度编辑，横屏车机下不至于被压扁
-    minHeight: 160,
-    // backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  },
   input: {
     minWidth: 290,
-    // borderRadius: 4,
-    // borderTopRightRadius: 4,
-    // borderBottomRightRadius: 4,
     paddingTop: 5,
     paddingBottom: 5,
   },
   inputTipText: {
     marginBottom: 8,
-    // lineHeight: 18,
-    // backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
 
   btns: {
@@ -171,7 +141,8 @@ const styles = createStyle({
     justifyContent: 'center',
     paddingBottom: 15,
     paddingLeft: 15,
-    // paddingRight: 15,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   btn: {
     flex: 1,
@@ -181,5 +152,3 @@ const styles = createStyle({
     marginRight: 15,
   },
 })
-
-
