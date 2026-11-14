@@ -110,8 +110,9 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
             {/* 【v55】竖屏高度降到 55%：键盘弹出后弹窗仍能完整显示；
                 【v56】横屏（车机）用 72%，避免输入框被压得过矮 */}
             <View style={styles.content}>
-              <RuleInput ref={inputRef} />
+              {/* 【v57】说明文字移到输入框上方，避免输入框多行后把说明文字挤到与按钮重合 */}
               <Text style={styles.inputTipText} size={13} color={theme['c-600']}>{t('setting_dislike_list_tips')}</Text>
+              <RuleInput ref={inputRef} />
             </View>
             <View style={styles.btns}>
               <Button style={{ ...styles.btn, backgroundColor: theme['c-button-background'] }} onPress={handleCancel}>
@@ -160,7 +161,7 @@ const styles = createStyle({
     paddingBottom: 5,
   },
   inputTipText: {
-    marginTop: 8,
+    marginBottom: 8,
     // lineHeight: 18,
     // backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },

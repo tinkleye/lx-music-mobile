@@ -143,15 +143,15 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
           </Animated.View>
         </View>
         <View style={styles.infoText}>
+          {/* 【v56】漫游入口：横屏车机播放页没渲染 Header，单独一行放在歌名上方 */}
+          <View style={styles.roamRow}>
+            <RoamBadge size={12} />
+          </View>
           {/* 【优化】歌名过长时不再被截断成一行：允许折成两行，超出两行才省略；
               行高稍微收紧一点，两行时看起来更整齐。
               原右侧的收藏星形按钮无响应已移除，歌名可用宽度因此变宽 */}
           <Text numberOfLines={2} size={19} style={styles.songName} ellipsizeMode="tail">{musicInfo.name}</Text>
-          <View style={styles.singerRow}>
-            <Text numberOfLines={1} size={13} color={theme['c-font-label']} style={styles.singerText}>{musicInfo.singer}</Text>
-            {/* 【v56】横屏车机播放页没渲染 Header，漫游入口补在歌手名旁 */}
-            <RoamBadge size={12} />
-          </View>
+          <Text numberOfLines={1} size={13} color={theme['c-font-label']}>{musicInfo.singer}</Text>
         </View>
       </View>
 
@@ -179,9 +179,10 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
         <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={handlePlayNext}>
           <Icon name="nextMusic" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
         </TouchableOpacity>
-        {/* 【改造】当前播放列表：点击后在左栏显示队列，10 秒无操作自动返回 */}
+        {/* 【改造】当前播放列表：点击后在左栏显示队列，10 秒无操作自动返回；
+            【v56】图标颜色改与循环按钮一致（c-550），不跟上一首/下一首同色 */}
         <TouchableOpacity style={{ ...styles.cotrolBtn, width: sideBtnSize, height: sideBtnSize }} activeOpacity={0.5} onPress={onShowPlayList}>
-          <Icon name="menu" color={theme['c-button-font']} rawSize={sideBtnSize * 0.7} />
+          <Icon name="menu" color={theme['c-550']} rawSize={sideBtnSize * 0.7} />
         </TouchableOpacity>
       </View>
 
@@ -232,13 +233,9 @@ const styles = createStyle({
     // createStyle 会对 lineHeight 做字号缩放，这里写原始值即可
     lineHeight: 25,
   },
-  singerRow: {
+  roamRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  singerText: {
-    flexShrink: 1,
   },
   progressWrap: {
     flexGrow: 0,
