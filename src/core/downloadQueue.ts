@@ -1,6 +1,6 @@
 import { saveData, getData } from '@/plugins/storage'
 import settingState from '@/store/setting/state'
-import { startDownload, getDownloadQualitys, QUALITY_ORDER, DownloadCanceledError, type DownloadProgress, type DownloadResult } from '@/core/download'
+import { startDownload, getDownloadQualitys, QUALITY_ORDER, DownloadCanceledError, isUsbDownloadDir, type DownloadProgress, type DownloadResult } from '@/core/download'
 import { readDir, unlink } from '@/utils/fs'
 import { toast } from '@/utils/tools'
 
@@ -110,7 +110,10 @@ const runTask = (task: DownloadTask) => {
 
 /** 按并发数推进等待中的任务 */
 const pump = async() => {
-  const concurrency = Math.max(1, Math.min(6, Number(settingState.setting['download.concurrency']) || 3))
+  const rawConcurrency = Math.max(1, Math.min(6, Number(settingState.setting['download.concurrency']) || 3))
+  // 【v64】下载目录在 U 盘/外置卷时降为串行：多路直写 exFAT 卷易触发重挂载，
+  // 重挂载瞬间写探针失败会把歌降级存到内置，串行可大幅降低概率
+  const concurrency = isUsbDownloadDir() ? 1 : rawConcurrency
   // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
   while (runningHandles.size < concurrency) {
     const next = findNextWaiting()

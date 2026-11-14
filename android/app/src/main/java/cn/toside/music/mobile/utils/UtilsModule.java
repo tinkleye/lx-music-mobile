@@ -286,18 +286,49 @@ public class UtilsModule extends ReactContextBaseJavaModule {
 
   /**
    * 【v63】跳转系统设置，引导用户授予「所有文件访问」权限。
+   * 【v64】部分车机 ROM 不响应「本应用专属」授权 action（点了不弹窗），
+   * 先探测是否有可用 Activity，没有就兜底跳「所有文件访问权限」应用列表页。
    */
   @ReactMethod
   public void requestAllFilesAccess(final Promise promise) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+      promise.resolve(true);
+      return;
+    }
+    // 优先：直接打开本应用专属授权页
     try {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-        intent.setData(Uri.parse("package:" + reactContext.getPackageName()));
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+      intent.setData(Uri.parse("package:" + reactContext.getPackageName()));
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      if (intent.resolveActivity(reactContext.getPackageManager()) != null) {
         reactContext.startActivity(intent);
+        promise.resolve(true);
+        return;
       }
+    } catch (Exception e) {
+      Log.w("Utils", "requestAllFilesAccess(app-specific) failed", e);
+    }
+    // 兜底 1：跳系统「所有文件访问权限」应用列表页，让用户手动找到本应用打开
+    try {
+      Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      if (intent.resolveActivity(reactContext.getPackageManager()) != null) {
+        reactContext.startActivity(intent);
+        promise.resolve(true);
+        return;
+      }
+    } catch (Exception e) {
+      Log.w("Utils", "requestAllFilesAccess(list) failed", e);
+    }
+    // 兜底 2：跳本应用详情页（几乎必有），用户在里面找「所有文件访问」开关
+    try {
+      Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+      intent.setData(Uri.parse("package:" + reactContext.getPackageName()));
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      reactContext.startActivity(intent);
       promise.resolve(true);
     } catch (Exception e) {
+      Log.w("Utils", "requestAllFilesAccess(app-details) failed", e);
       promise.resolve(false);
     }
   }

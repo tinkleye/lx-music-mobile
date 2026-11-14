@@ -152,6 +152,17 @@ export const getDownloadDir = () => {
   return (custom && custom.trim()) || getDirCandidates()[0]
 }
 
+/**
+ * 【v64】下载目录是否落在 U 盘/外置卷（或 SAF 授权目录）。
+ * 这类卷直写易触发重挂载，多路并发会加剧，下载队列据此降为串行。
+ */
+export const isUsbDownloadDir = () => {
+  const dir = getDownloadDir()
+  if (dir.startsWith('content://')) return true
+  const norm = dir.replace(/\/+$/, '')
+  return norm.startsWith('/storage/') && !norm.startsWith('/storage/emulated/')
+}
+
 /** 分组返回下载目录候选：内置存储 + U盘/外置卷（供设置页分组展示） */
 export const getDownloadDirCandidatesGrouped = async(): Promise<{ builtin: string[], usb: string[] }> => {
   const all = await getDownloadDirCandidates()
@@ -169,14 +180,22 @@ export const getDownloadDirLabel = () => {
 const prepareDownloadDir = async(): Promise<{ dir: string, isPublic: boolean }> => {
   const custom = (settingState.setting['download.dir'] || '').trim()
   if (custom) {
-    try {
-      if (!await RNFS.exists(custom)) await RNFS.mkdir(custom)
-      const probe = `${custom.replace(/\/+$/, '')}/.lx_write_test`
-      await RNFS.writeFile(probe, 'ok', 'utf8')
-      await RNFS.unlink(probe)
-      return { dir: custom, isPublic: !custom.startsWith(RNFS.ExternalDirectoryPath) }
-    } catch (err) {
-      console.log('custom download dir not writable, fallback to default:', custom, err)
+    // 【v64】U 盘/外置卷直写会短暂重挂载（remount），写探针此刻会失败；先重试等待
+    // 挂载恢复，而不是立即静默降级到内置存储，避免「设了 U 盘却存到内置」。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (!await RNFS.exists(custom)) await RNFS.mkdir(custom)
+        const probe = `${custom.replace(/\/+$/, '')}/.lx_write_test`
+        await RNFS.writeFile(probe, 'ok', 'utf8')
+        await RNFS.unlink(probe)
+        return { dir: custom, isPublic: !custom.startsWith(RNFS.ExternalDirectoryPath) }
+      } catch (err) {
+        console.log('custom download dir not writable, attempt:', attempt + 1, custom, err)
+        // 目录都不存在（U 盘被拔出）则重试无意义，直接降级
+        const stillExists = await RNFS.exists(custom).catch(() => false)
+        if (!stillExists) break
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1500))
+      }
     }
   }
   const dirs = getDirCandidates()

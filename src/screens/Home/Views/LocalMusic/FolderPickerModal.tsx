@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react'
-import { Modal, ScrollView, TouchableOpacity, View } from 'react-native'
+import { Modal, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
 
 // 【v33】扫描文件夹选择器（多选）
 // 【v34】重做：不再逐层导航（二级目录无法继续下钻），改为调用原生 getAudioFolders
@@ -52,6 +52,8 @@ export default memo(({ visible, excluded, onClose }: {
 }) => {
   const t = useI18n()
   const theme = useTheme()
+  // 【v64】用窗口高度算固定像素，避免百分比高度在 Android Modal 内失效导致列表不滚
+  const { height: winH } = useWindowDimensions()
   const [folders, setFolders] = useState<AudioFolder[] | null>(null)
   const [excludedSet, setExcludedSet] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
@@ -107,7 +109,7 @@ export default memo(({ visible, excluded, onClose }: {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       {/* 【v52】点弹窗外（遮罩）自动关闭并保存当前勾选 */}
       <TouchableOpacity style={styles.mask} activeOpacity={1} onPress={handleClose}>
-        <View style={{ ...styles.dialog, backgroundColor: theme['c-main-background'] }} onStartShouldSetResponder={() => true}>
+        <View style={{ ...styles.dialog, height: winH * 0.8, backgroundColor: theme['c-main-background'] }} onStartShouldSetResponder={() => true}>
           <View style={styles.titleRow}>
             <Text style={{ ...styles.title, color: theme['c-font'] }}>{t('local_music_pick_folder')}</Text>
             <Text style={{ ...styles.count, color: theme['c-font-label'] }}>
@@ -162,9 +164,8 @@ const styles = createStyle({
   },
   dialog: {
     borderRadius: 10,
-    // 【v63】明确高度（替代 maxHeight）：让 ScrollView 有确定的剩余空间可分配，
-    // 文件夹列表超出时在 ScrollView 内滚动（之前 maxHeight + flexGrow 仍不滚）
-    height: '80%',
+    // 【v64】高度改为 useWindowDimensions 计算的固定像素（百分比在 Android Modal 内不可靠），
+    // 让 ScrollView 有确定的剩余空间可分配，文件夹列表超出时在 ScrollView 内滚动
     paddingTop: 16,
     paddingBottom: 12,
     paddingHorizontal: 14,
@@ -187,9 +188,9 @@ const styles = createStyle({
     paddingBottom: 8,
   },
   list: {
-    // 【v62】占满弹窗剩余空间，内容超出时内部滚动（原来 flexGrow:0 会把弹窗撑开、列表不滚）
-    flexGrow: 1,
-    flexShrink: 1,
+    // 【v64】flex:1（含 flexBasis:0）强制占满弹窗剩余空间，内容超出时内部滚动；
+    // 之前 flexGrow:1 + flexShrink:1 但 flexBasis:auto 按内容高度布局，列表被撑开导致不滚
+    flex: 1,
   },
   row: {
     flexDirection: 'row',
