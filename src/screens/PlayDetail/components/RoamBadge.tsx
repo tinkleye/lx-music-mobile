@@ -84,10 +84,11 @@ export default memo(({ size = 10 }: { size?: number }) => {
       onPress={handlePress}
       activeOpacity={0.6}
     >
-      {/* 【v59】alignSelf flex-start 让内层宽度随内容、不随容器拉伸；
-          否则 Text 被容器宽度约束后 numberOfLines=1 直接截断成省略号，
-          onTextLayout 拿到的已是截断宽度，distance 恒为 0 不滚动 */}
-      <Animated.View style={{ transform: [{ translateX }], alignSelf: 'flex-start' }}>
+      {/* 【v60】flexDirection:'row' 让内层在测量时不换行、不给 Text 传父容器宽度约束，
+          Text 才能按完整内容渲染（numberOfLines=1 不截断），onTextLayout 拿到真实文字宽；
+          badge 的 maxWidth + overflow hidden 作显示窗口裁剪。之前的 alignSelf:flex-start 仍
+          会被 Yoga 在测量阶段压到容器宽，导致量到截断宽、distance=0 不滚 */}
+      <Animated.View style={{ flexDirection: 'row', transform: [{ translateX }] }}>
         <Text
           size={size}
           color={roam.active ? theme['c-primary-font'] : theme['c-button-font']}
