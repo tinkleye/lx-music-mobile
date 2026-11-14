@@ -22,6 +22,7 @@ import TimeoutExitBtn from './MoreBtn/TimeoutExitBtn'
 import MusicAddBtn from './MoreBtn/MusicAddBtn'
 import PlayModeBtn from './MoreBtn/PlayModeBtn'
 import BlockSingerBtn from '@/screens/PlayDetail/components/BlockSingerBtn'
+import RoamBadge from '@/screens/PlayDetail/components/RoamBadge'
 
 // 【改造】车机模式播放页左栏：参考车机 App 截图重排
 // 顶部：返回 + 封面（黑胶唱片从封面右侧露出一截）+ 歌名/歌手
@@ -146,7 +147,11 @@ export default memo(({ coverSize, onShowPlayList }: { coverSize: number, onShowP
               行高稍微收紧一点，两行时看起来更整齐。
               原右侧的收藏星形按钮无响应已移除，歌名可用宽度因此变宽 */}
           <Text numberOfLines={2} size={19} style={styles.songName} ellipsizeMode="tail">{musicInfo.name}</Text>
-          <Text numberOfLines={2} size={13} color={theme['c-font-label']}>{musicInfo.singer}</Text>
+          <View style={styles.singerRow}>
+            <Text numberOfLines={1} size={13} color={theme['c-font-label']} style={styles.singerText}>{musicInfo.singer}</Text>
+            {/* 【v56】横屏车机播放页没渲染 Header，漫游入口补在歌手名旁 */}
+            <RoamBadge size={12} />
+          </View>
         </View>
       </View>
 
@@ -226,6 +231,14 @@ const styles = createStyle({
   songName: {
     // createStyle 会对 lineHeight 做字号缩放，这里写原始值即可
     lineHeight: 25,
+  },
+  singerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  singerText: {
+    flexShrink: 1,
   },
   progressWrap: {
     flexGrow: 0,

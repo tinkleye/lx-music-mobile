@@ -7,6 +7,7 @@ import { useTheme } from '@/store/theme/hook'
 import { useI18n } from '@/lang'
 import Dialog, { type DialogType } from '@/components/common/Dialog'
 import Button from '@/components/common/Button'
+import { useHorizontalMode } from '@/utils/hooks'
 
 interface RuleInputType {
   setText: (text: string) => void
@@ -68,6 +69,8 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
   const [visible, setVisible] = useState(false)
   const theme = useTheme()
   const t = useI18n()
+  // 【v56】横屏（车机）屏高低，55% 绝对高度太小导致输入框过矮，横屏适当加高
+  const isHorizontalMode = useHorizontalMode()
 
   const handleShow = (rules: string) => {
     dialogRef.current?.setVisible(true)
@@ -103,8 +106,9 @@ export default forwardRef<DislikeEditModalType, DislikeEditModalProps>(({ onSave
   return (
     visible
       ? (
-          <Dialog height='55%' ref={dialogRef} bgHide={false}>
-            {/* 【v55】高度降到 55%：键盘弹出后弹窗仍能完整显示（输入框内部可滚动） */}
+          <Dialog height={isHorizontalMode ? '72%' : '55%'} ref={dialogRef} bgHide={false}>
+            {/* 【v55】竖屏高度降到 55%：键盘弹出后弹窗仍能完整显示；
+                【v56】横屏（车机）用 72%，避免输入框被压得过矮 */}
             <View style={styles.content}>
               <RuleInput ref={inputRef} />
               <Text style={styles.inputTipText} size={13} color={theme['c-600']}>{t('setting_dislike_list_tips')}</Text>
@@ -143,6 +147,8 @@ const styles = createStyle({
   inputContent: {
     flexGrow: 1,
     flexShrink: 1,
+    // 【v56】保证输入框有足够高度编辑，横屏车机下不至于被压扁
+    minHeight: 160,
     // backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   input: {

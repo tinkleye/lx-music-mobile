@@ -780,6 +780,6 @@
   "download_attr_format": "格式",
   "download_attr_size": "大小",
   "download_attr_path": "文件路径",
-  "setting_basic_open_drive_home": "始终打开驾驶舱",
-  "setting_basic_open_drive_home_desc": "启动或回到首页时，直接进入驾驶舱页面"
+  "setting_basic_open_drive_home": "启动后打开驾驶舱",
+  "setting_basic_open_drive_home_desc": "启动应用后，直接进入驾驶舱页面"
 }

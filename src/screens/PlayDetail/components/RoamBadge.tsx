@@ -13,7 +13,7 @@ import { toast } from '@/utils/tools'
  * - 未漫游 → 显示「歌曲漫游」按钮，点击开始漫游；
  * - 漫游中 → 替换显示「漫游 · 来源」，点击结束漫游、回到按钮。
  */
-export default memo(() => {
+export default memo(({ size = 10 }: { size?: number }) => {
   const t = useI18n()
   const theme = useTheme()
   const [roam, setRoam] = useState(getRoamState())
@@ -38,7 +38,7 @@ export default memo(() => {
       onPress={handlePress}
       activeOpacity={0.6}
     >
-      <Text size={10} color={roam.active ? theme['c-primary-font'] : theme['c-button-font']} numberOfLines={1}>
+      <Text size={size} color={roam.active ? theme['c-primary-font'] : theme['c-button-font']} numberOfLines={1}>
         {roam.active ? t('roam_source_badge', { source: roam.sourceDesc }) : t('roam_list_name')}
       </Text>
     </TouchableOpacity>
