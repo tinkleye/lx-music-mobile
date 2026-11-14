@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from 'react'
-import { Modal, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native'
+import { Modal, ScrollView, TouchableOpacity, View, Pressable, useWindowDimensions } from 'react-native'
 
 // 【v33】扫描文件夹选择器（多选）
 // 【v34】重做：不再逐层导航（二级目录无法继续下钻），改为调用原生 getAudioFolders
@@ -109,7 +109,10 @@ export default memo(({ visible, excluded, onClose }: {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
       {/* 【v52】点弹窗外（遮罩）自动关闭并保存当前勾选 */}
       <TouchableOpacity style={styles.mask} activeOpacity={1} onPress={handleClose}>
-        <View style={{ ...styles.dialog, height: winH * 0.8, backgroundColor: theme['c-main-background'] }} onStartShouldSetResponder={() => true}>
+        {/* 【v64】点弹窗内部不关闭：用 Pressable 空 onPress 吃掉点击（阻止冒泡到 mask）。
+            不能用 onStartShouldSetResponder——它会死占 JS 响应者，导致路径文字处滚动失效
+            （只有 CheckBox 这类会自动让位给滚动的 Pressable 附近才能滚） */}
+        <Pressable style={{ ...styles.dialog, height: winH * 0.8, backgroundColor: theme['c-main-background'] }} onPress={() => {}}>
           <View style={styles.titleRow}>
             <Text style={{ ...styles.title, color: theme['c-font'] }}>{t('local_music_pick_folder')}</Text>
             <Text style={{ ...styles.count, color: theme['c-font-label'] }}>
@@ -149,7 +152,7 @@ export default memo(({ visible, excluded, onClose }: {
               <Text style={{ color: confirmFont }}>{t('confirm')}</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       </TouchableOpacity>
     </Modal>
   )
