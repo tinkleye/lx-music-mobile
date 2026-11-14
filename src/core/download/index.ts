@@ -1,8 +1,11 @@
 import RNFS from 'react-native-fs'
+import { NativeModules } from 'react-native'
 import { getMusicUrl, getLyricInfo, getPicPath } from '@/core/music'
 import { writeLyric, writePic } from '@/utils/localMediaMetadata'
 import { getExternalStoragePaths, temporaryDirectoryPath } from '@/utils/fs'
 import settingState from '@/store/setting/state'
+
+const DOWNLOAD_UA = 'Mozilla/5.0 (Linux; Android 10; Pixel 3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Mobile Safari/537.36'
 
 /**
  * 【车机改造】歌曲下载。
@@ -254,6 +257,31 @@ export const startDownload = ({ musicInfo, quality, onProgress, allowToggleSourc
   let destIsPublic = true
 
   const promise = (async(): Promise<DownloadResult> => {
+    const custom = (settingState.setting['download.dir'] || '').trim()
+    // 【v62】SAF 授权目录（content:// treeUri）：走原生流式下载，
+    // 换 DocumentsProvider + ContentResolver 底层通道，规避直写 exFAT U 盘导致的重挂载
+    if (custom.startsWith('content://')) {
+      if (canceled) throw new DownloadCanceledError()
+      const url = await getMusicUrl({ musicInfo, quality, isRefresh: true, allowToggleSource })
+      if (!url) throw new Error('empty url')
+      if (canceled) throw new DownloadCanceledError()
+      const baseName = sanitizeFileName(
+        settingState.setting['download.fileName']
+          .replace('歌手', musicInfo.singer ?? '')
+          .replace('歌名', musicInfo.name),
+      )
+      const ext = getExtFromUrl(url, quality)
+      const fileName = `${baseName}.${ext}`
+      const res = await NativeModules.MediaScannerModule.downloadToTree(custom, url, fileName, DOWNLOAD_UA)
+      const size = Number(res?.size) || 0
+      onProgress?.({ loaded: size, total: size })
+      return {
+        filePath: res.filePath,
+        fileName: res.fileName,
+        isPublic: false,
+      }
+    }
+
     const { dir, isPublic } = await prepareDownloadDir()
     destIsPublic = isPublic
     if (canceled) throw new DownloadCanceledError()

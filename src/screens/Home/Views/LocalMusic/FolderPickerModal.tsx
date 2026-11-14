@@ -185,7 +185,9 @@ const styles = createStyle({
     paddingBottom: 8,
   },
   list: {
-    flexGrow: 0,
+    // 【v62】占满弹窗剩余空间，内容超出时内部滚动（原来 flexGrow:0 会把弹窗撑开、列表不滚）
+    flexGrow: 1,
+    flexShrink: 1,
   },
   row: {
     flexDirection: 'row',

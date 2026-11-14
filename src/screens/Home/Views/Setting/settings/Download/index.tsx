@@ -9,9 +9,10 @@ import Dialog, { type DialogType } from '@/components/common/Dialog'
 import { updateSetting } from '@/core/common'
 import { useI18n } from '@/lang'
 import { useSettingValue } from '@/store/setting/hook'
-import { createStyle } from '@/utils/tools'
+import { createStyle, toast } from '@/utils/tools'
 import Text from '@/components/common/Text'
 import { useTheme } from '@/store/theme/hook'
+import { selectManagedFolder } from '@/utils/fs'
 import {
   getDownloadDirCandidatesGrouped,
   getDownloadDir,
@@ -23,8 +24,9 @@ import DirBrowser, { type DirBrowserType } from './DirBrowser'
 const CONCURRENCY_OPTIONS = [1, 2, 3, 4, 5, 6]
 const FILE_NAME_OPTIONS: LX.AppSetting['download.fileName'][] = ['歌名 - 歌手', '歌手 - 歌名', '歌名']
 
-// 路径展示美化：内置存储前缀替换为可读名，U盘卷名保留
+// 路径展示美化：内置存储前缀替换为可读名，U盘卷名保留；SAF 授权目录（content://）展示为 U盘
 const displayPath = (p: string, storageLabel: string, usbLabel: string) => {
+  if (p.startsWith('content://')) return `${usbLabel}（SAF 授权）`
   if (p.startsWith('/storage/emulated/0/')) return p.replace('/storage/emulated/0/', `${storageLabel}/`)
   if (p == '/storage/emulated/0') return storageLabel
   const m = p.match(/^\/storage\/([A-Za-z0-9-]{4,})(\/|$)/)
@@ -64,6 +66,20 @@ export default () => {
   const dirBrowserRef = useRef<DirBrowserType>(null)
   const handleBrowseSelect = (path: string) => {
     updateSetting({ 'download.dir': path })
+  }
+
+  // 【v62】SAF 授权 U 盘目录：打开系统目录选择器，选 U 盘目录后持久化 treeUri
+  const handleAuthorizeUsb = async() => {
+    try {
+      const folder = await selectManagedFolder(true)
+      if (!folder?.path) return // 用户取消
+      updateSetting({ 'download.dir': folder.path })
+      dirDialogRef.current?.setVisible(false)
+      toast(t('download_setting_dir_authorized'))
+    } catch (err) {
+      console.log('authorize usb dir failed:', err)
+      toast(t('download_setting_dir_authorize_failed'))
+    }
   }
 
   const qualityLabel = (q: LX.Quality | '') => (q === '' ? t('download_setting_quality_auto') : getQualityLabel(q))
@@ -221,6 +237,13 @@ export default () => {
               }}
             >
               <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_reset')}</Text>
+            </TouchableOpacity>
+            {/* 【v62】SAF 授权 U 盘目录：走 DocumentsProvider 写入，规避直写 exFAT U 盘的重挂载问题 */}
+            <TouchableOpacity
+              style={{ ...styles.optionBtn, backgroundColor: theme['c-button-background'] }}
+              onPress={() => { void handleAuthorizeUsb() }}
+            >
+              <Text style={{ color: theme['c-button-font'] }}>{t('download_setting_dir_authorize_usb')}</Text>
             </TouchableOpacity>
             {/* 【v45】任选路径：进入目录浏览器，逐级选择任意目录 */}
             <TouchableOpacity

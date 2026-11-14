@@ -14,6 +14,7 @@ import android.os.storage.StorageVolume;
 import android.provider.MediaStore;
 
 import androidx.core.content.ContextCompat;
+import androidx.documentfile.provider.DocumentFile;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
@@ -24,6 +25,10 @@ import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.List;
 
 /**
@@ -338,6 +343,95 @@ public class MediaScannerModule extends ReactContextBaseJavaModule {
       promise.resolve(result);
     } catch (Exception err) {
       promise.reject("SCAN_ERROR", err);
+    }
+  }
+
+  /**
+   * 【v62】流式下载到 SAF 授权目录（U 盘）。
+   * 背景：车机 Android 9 + exFAT 下，直接路径（/storage/XXXX-XXXX）长时间流式写 U 盘
+   * 易触发 exFAT 驱动 I/O 错误、导致系统卸载重挂载 U 盘；改用 SAF 授权目录
+   * （DocumentsProvider + ContentResolver 写入），换一条底层写入通道，规避该问题。
+   *
+   * @param treeUri  授权目录的 tree URI（content://com.android.externalstorage.documents/tree/...）
+   * @param url      音源直链
+   * @param fileName 目标文件名（含扩展名）
+   * @param ua       请求 User-Agent
+   */
+  @ReactMethod
+  public void downloadToTree(String treeUri, String url, String fileName, String ua, final Promise promise) {
+    HttpURLConnection conn = null;
+    InputStream in = null;
+    OutputStream out = null;
+    try {
+      Context context = reactContext;
+      Uri tree = Uri.parse(treeUri);
+      DocumentFile dir = DocumentFile.fromTreeUri(context, tree);
+      if (dir == null || !dir.canWrite()) {
+        promise.reject("SAF_ERROR", "directory not writable");
+        return;
+      }
+
+      // 打开连接
+      URL u = new URL(url);
+      conn = (HttpURLConnection) u.openConnection();
+      conn.setRequestMethod("GET");
+      conn.setConnectTimeout(15000);
+      conn.setReadTimeout(30000);
+      conn.setInstanceFollowRedirects(true);
+      if (ua != null && !ua.isEmpty()) conn.setRequestProperty("User-Agent", ua);
+      conn.connect();
+      int code = conn.getResponseCode();
+      if (code < 200 || code >= 300) {
+        promise.reject("HTTP_ERROR", "HTTP " + code);
+        return;
+      }
+
+      // 重名加后缀：base(1).ext
+      String targetName = fileName;
+      String base = fileName;
+      String ext = "";
+      int dot = fileName.lastIndexOf('.');
+      if (dot > 0) {
+        base = fileName.substring(0, dot);
+        ext = fileName.substring(dot);
+      }
+      for (int i = 1; i < 100 && dir.findFile(targetName) != null; i++) {
+        targetName = base + "(" + i + ")" + ext;
+      }
+
+      DocumentFile file = dir.createFile("*/*", targetName);
+      if (file == null) {
+        promise.reject("SAF_ERROR", "create file failed: " + targetName);
+        return;
+      }
+
+      // 流式复制
+      in = conn.getInputStream();
+      out = context.getContentResolver().openOutputStream(file.getUri(), "w");
+      if (out == null) {
+        promise.reject("SAF_ERROR", "open output stream failed");
+        return;
+      }
+      byte[] buf = new byte[65536];
+      int read;
+      long total = 0;
+      while ((read = in.read(buf)) != -1) {
+        out.write(buf, 0, read);
+        total += read;
+      }
+      out.flush();
+
+      WritableMap result = Arguments.createMap();
+      result.putString("filePath", file.getUri().toString());
+      result.putString("fileName", targetName);
+      result.putDouble("size", total);
+      promise.resolve(result);
+    } catch (Exception err) {
+      promise.reject("SAF_ERROR", err.toString());
+    } finally {
+      try { if (out != null) out.close(); } catch (Exception ignored) {}
+      try { if (in != null) in.close(); } catch (Exception ignored) {}
+      if (conn != null) conn.disconnect();
     }
   }
 }

@@ -781,5 +781,8 @@
   "download_attr_size": "大小",
   "download_attr_path": "檔案路徑",
   "setting_basic_open_drive_home": "啟動後開啟駕駛艙",
-  "setting_basic_open_drive_home_desc": "啟動應用後，直接進入駕駛艙頁面"
+  "setting_basic_open_drive_home_desc": "啟動應用後，直接進入駕駛艙頁面",
+  "download_setting_dir_authorize_usb": "授權 U 盤目錄",
+  "download_setting_dir_authorized": "U 盤目錄已授權",
+  "download_setting_dir_authorize_failed": "授權失敗，請重試"
 }

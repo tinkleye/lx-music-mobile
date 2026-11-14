@@ -781,5 +781,8 @@
   "download_attr_size": "Size",
   "download_attr_path": "File path",
   "setting_basic_open_drive_home": "Open drive home after launch",
-  "setting_basic_open_drive_home_desc": "Go directly to the drive home page after launching the app"
+  "setting_basic_open_drive_home_desc": "Go directly to the drive home page after launching the app",
+  "download_setting_dir_authorize_usb": "Authorize USB directory",
+  "download_setting_dir_authorized": "USB directory authorized",
+  "download_setting_dir_authorize_failed": "Authorization failed, please retry"
 }
