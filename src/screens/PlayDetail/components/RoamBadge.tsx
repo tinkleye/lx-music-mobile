@@ -84,11 +84,15 @@ export default memo(({ size = 10 }: { size?: number }) => {
       onPress={handlePress}
       activeOpacity={0.6}
     >
-      <Animated.View style={{ transform: [{ translateX }] }}>
+      {/* 【v59】alignSelf flex-start 让内层宽度随内容、不随容器拉伸；
+          否则 Text 被容器宽度约束后 numberOfLines=1 直接截断成省略号，
+          onTextLayout 拿到的已是截断宽度，distance 恒为 0 不滚动 */}
+      <Animated.View style={{ transform: [{ translateX }], alignSelf: 'flex-start' }}>
         <Text
           size={size}
           color={roam.active ? theme['c-primary-font'] : theme['c-button-font']}
           numberOfLines={1}
+          style={styles.text}
           onTextLayout={e => { setTextWidth(e.nativeEvent.lines[0]?.width ?? 0) }}
         >{text}</Text>
       </Animated.View>
@@ -104,5 +108,9 @@ const styles = createStyle({
     maxWidth: 200,
     flexShrink: 1,
     overflow: 'hidden',
+  },
+  // 【v59】flexShrink 0 让文字按完整内容宽度渲染，不被压缩成省略号
+  text: {
+    flexShrink: 0,
   },
 })
