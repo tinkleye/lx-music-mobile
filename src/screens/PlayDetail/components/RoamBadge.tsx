@@ -84,11 +84,14 @@ export default memo(({ size = 10 }: { size?: number }) => {
       onPress={handlePress}
       activeOpacity={0.6}
     >
-      {/* 【v60】flexDirection:'row' 让内层在测量时不换行、不给 Text 传父容器宽度约束，
-          Text 才能按完整内容渲染（numberOfLines=1 不截断），onTextLayout 拿到真实文字宽；
-          badge 的 maxWidth + overflow hidden 作显示窗口裁剪。之前的 alignSelf:flex-start 仍
-          会被 Yoga 在测量阶段压到容器宽，导致量到截断宽、distance=0 不滚 */}
-      <Animated.View style={{ flexDirection: 'row', transform: [{ translateX }] }}>
+      {/* 【v61】占位 Text：在文档流里撑起 badge 高度（会被截断也无妨，opacity:0 隐藏） */}
+      <Text numberOfLines={1} size={size} style={styles.placeholder}>{text}</Text>
+      {/* 【v61】absolute 滚动层：脱离文档流后，measure 不再被容器宽度约束，
+          numberOfLines=1 才能按完整内容渲染、onTextLayout 量到真实文字宽，
+          滚动距离才 >0；badge 的 maxWidth + overflow:hidden 作显示窗口。
+          之前 v58~v60 的 stretch/alignSelf/flexShrink/flexDirection:row 都改不了
+          Yoga 在 measure 阶段传入的 maxWidth，文字恒被截断成省略号 */}
+      <Animated.View style={{ ...styles.marqueeLayer, transform: [{ translateX }] }}>
         <Text
           size={size}
           color={roam.active ? theme['c-primary-font'] : theme['c-button-font']}
@@ -110,7 +113,19 @@ const styles = createStyle({
     flexShrink: 1,
     overflow: 'hidden',
   },
-  // 【v59】flexShrink 0 让文字按完整内容宽度渲染，不被压缩成省略号
+  // 占位撑高度，不可见
+  placeholder: {
+    opacity: 0,
+  },
+  // absolute 滚动层：与占位文字垂直对齐
+  marqueeLayer: {
+    position: 'absolute',
+    left: PADDING_H,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
+  // 完整渲染、不压缩
   text: {
     flexShrink: 0,
   },
